@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Life Unlocked Version 10.8.2</title>
+<title>Life Unlocked Version 10.8.3</title>
 <style>
 body{font-family:system-ui,sans-serif;line-height:1.5;padding:1rem;max-width:58rem;margin:auto}
 button,input,select{font:inherit;padding:.7rem;margin:.35rem 0}
@@ -16,7 +16,7 @@ button{display:block;width:100%;text-align:left}
 </head>
 <body>
 <h1>Life Unlocked</h1>
-<p>Version 10.8.2 Stability and Save Build</p>
+<p>Version 10.8.3 Active Play and Accessibility Update</p>
 <div id="game-live-region" role="status" aria-live="polite" aria-atomic="true"></div>
 <div id="cafe-live-region" role="status" aria-live="polite" aria-atomic="true"></div>
 
@@ -53,7 +53,6 @@ button{display:block;width:100%;text-align:left}
 <h2 tabindex="-1">Café Dashboard</h2>
 <p id="cafe-summary" class="summary"></p>
 <button onclick="startShift('counter')">Start Café Shift</button>
-<button onclick="startShift('driveThru')">Start Drive-Thru Shift</button>
 <button id="resume-saved-shift-button" onclick="resumeShift()">Resume Saved Café Shift</button>
 <button id="end-saved-shift-button" onclick="endSavedShift()">End Saved Café Shift</button>
 <button onclick="openStorage()">Inventory and Storage</button>
@@ -84,7 +83,9 @@ button{display:block;width:100%;text-align:left}
 <section id="screen-shift" class="screen" hidden>
 <h2 tabindex="-1">Active Café Shift</h2>
 <p id="shift-status" class="summary"></p>
-<p>Optional desktop shortcuts during a shift: Alt+T Take Order. Alt+P Prepare. Alt+S Serve. Alt+R Repeat. Alt+C Status. Alt+N New Customer. Alt+L Clean Table. Alt+U Most Urgent Customer. Café navigation shortcuts work throughout the Café area: Alt+I Inventory. Alt+M Machines. Alt+B Bakery. Alt+E Employees. Alt+F Finances. Alt+G Statistics and Progress.</p>
+<button id="pause-shift-button" onclick="pauseActiveShift()">Pause Shift</button>
+<button id="resume-shift-button" onclick="resumeActiveShiftFromPause()" hidden>Resume Shift</button>
+<button onclick="show('cafe-hotkeys')">Keyboard Commands and Help</button>
 <button onclick="newCustomer()">New Customer</button>
 <button id="take-button" onclick="takeOrder()">Take Next Order</button>
 <button id="prepare-button" onclick="prepareOrder()">Prepare Next Order</button>
@@ -142,6 +143,7 @@ button{display:block;width:100%;text-align:left}
 <option value="cleaner">Cleaner</option>
 <option value="baker">Baker</option>
 <option value="barista">Barista</option>
+<option value="cashier">Cashier</option>
 <option value="driveThrough">Drive-Through Worker</option>
 </select>
 </label>
@@ -208,6 +210,14 @@ button{display:block;width:100%;text-align:left}
 <p>On-screen buttons are the main controls. Desktop shortcuts are optional. Important customer messages should take priority over routine background information.</p>
 <button onclick="openCafe()">Back to Café</button>
 </section>
+
+<section id="screen-cafe-hotkeys" class="screen" hidden>
+<h2 tabindex="-1">Keyboard Commands and Help</h2>
+<p>Desktop shortcuts during an active shift: Alt+T Take Order. Alt+P Prepare. Alt+S Serve when no Cashier is assigned. Alt+R Repeat Current Order. Alt+C Café Status. Alt+N New Customer. Alt+L Clean Table. Alt+U Most Urgent Customer.</p>
+<p>Café navigation shortcuts: Alt+I Inventory. Alt+M Machines. Alt+B Bakery. Alt+E Employees. Alt+F Finances. Alt+G Statistics and Progress.</p>
+<p>On iPhone and other touch devices, use the regular on-screen buttons.</p>
+<button onclick="returnToShiftFromHelp()">Back to Active Shift</button>
+</section>
 </main>
 
 <script src="world.js"></script>
@@ -219,9 +229,9 @@ button{display:block;width:100%;text-align:left}
 <script>
 "use strict";
 
-const screenIds=["welcome","new-game","main","cafe","cafe-settings","shift","confirm-end-shift","storage","bakery","machines","employees","idle","cafe-progress","cafe-finances","hotel","coming","cafe-tutorial"];
+const screenIds=["welcome","new-game","main","cafe","cafe-settings","shift","confirm-end-shift","storage","bakery","machines","employees","idle","cafe-progress","cafe-finances","hotel","coming","cafe-tutorial","cafe-hotkeys"];
 
-const cafeAreaScreens=new Set(["cafe","cafe-settings","shift","confirm-end-shift","storage","bakery","machines","employees","idle","cafe-progress","cafe-finances","cafe-tutorial"]);
+const cafeAreaScreens=new Set(["cafe","cafe-settings","shift","confirm-end-shift","storage","bakery","machines","employees","idle","cafe-progress","cafe-finances","cafe-tutorial","cafe-hotkeys"]);
 
 function isCafeAreaScreen(name){return cafeAreaScreens.has(name);}
 
@@ -246,16 +256,22 @@ function clearStaleLiveRegionText(){
 }
 
 function show(name){
+  const current=screenIds.find(id=>{
+    const el=document.getElementById("screen-"+id);
+    return el && !el.hidden;
+  });
+
   clearStaleLiveRegionText();
   screenIds.forEach(id=>{
     const el=document.getElementById("screen-"+id);
     if(el) el.hidden=id!==name;
   });
+
   syncCustomerServiceWithScreen(name);
   if(window.LifeUnlockedSave) LifeUnlockedSave.setLastScreen(name);
 
   const target=document.getElementById("screen-"+name);
-  if(target){
+  if(target && current!==name){
     const h=target.querySelector("h2");
     if(h) setTimeout(()=>h.focus(),10);
   }
@@ -337,7 +353,7 @@ function bellmontDateTimeLabel(){
 function updateMain(){
   const player=lifeUnlockedGame.state.player||{};
   document.getElementById("main-summary").textContent=
-    `Version 10.8.2. Character name ${player.name||"Player"}. Age ${player.age||"unknown"}. ${bellmontDateTimeLabel()} Personal Money ${LifeUnlockedWorld.state.money.personal} coins.`;
+    `Version 10.8.3. Character name ${player.name||"Player"}. Age ${player.age||"unknown"}. ${bellmontDateTimeLabel()} Personal Money ${LifeUnlockedWorld.state.money.personal} coins.`;
 }
 
 function openCafeOrMainAfterLoad(){
@@ -384,7 +400,7 @@ function startShift(area){
     updateSavedShiftControls();
     return;
   }
-  const r=cafeGame.startShift(area);
+  const r=cafeGame.startShift("counter");
   announce(r.message);
   if(r.ok){
     if(window.LifeUnlockedSave) LifeUnlockedSave.saveAll();
@@ -442,6 +458,8 @@ function renderShift(){
   document.getElementById("take-button").disabled=!firstCustomer();
   document.getElementById("prepare-button").disabled=!firstOrder("waiting");
   document.getElementById("serve-button").disabled=!firstOrder("ready");
+  const cashierAssigned=cafeGame.hasAssignedCashier&&cafeGame.hasAssignedCashier();
+  document.getElementById("serve-button").hidden=Boolean(cashierAssigned);
 
   const cleanButton=document.getElementById("clean-table-button");
   if(cleanButton){
@@ -449,6 +467,32 @@ function renderShift(){
     cleanButton.disabled=dirtyCount===0;
     cleanButton.textContent=dirtyCount===0?"No Tables Need Cleaning":`Clean Next Table — ${dirtyCount} dirty`;
   }
+}
+
+function pauseActiveShift(){
+  if(!cafeGame.state.shift.active){announce("No active Café shift.");return;}
+  if(cafeGame.pauseCustomerService()){
+    document.getElementById("pause-shift-button").hidden=true;
+    document.getElementById("resume-shift-button").hidden=false;
+    if(window.LifeUnlockedSave) LifeUnlockedSave.saveAll();
+    announce("Café shift paused. Customer arrivals and patience are paused.");
+  }
+}
+
+function resumeActiveShiftFromPause(){
+  if(!cafeGame.state.shift.active){announce("No active Café shift.");return;}
+  if(cafeGame.resumeCustomerService()){
+    document.getElementById("pause-shift-button").hidden=false;
+    document.getElementById("resume-shift-button").hidden=true;
+    if(window.LifeUnlockedSave) LifeUnlockedSave.saveAll();
+    announce("Café shift resumed.");
+  }
+  renderShift();
+}
+
+function returnToShiftFromHelp(){
+  renderShift();
+  show("shift");
 }
 
 function openEndShiftConfirmation(){

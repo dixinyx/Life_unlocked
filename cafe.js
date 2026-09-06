@@ -2,7 +2,7 @@
 "use strict";
 (() => {
   const SAVE_KEY = "lifeUnlockedCafeV10";
-  const VERSION = "10.8.2";
+  const VERSION = "10.8.3";
 
   const DIFFICULTIES = {
     beginner: { name: "Beginner", patience: null, arrivalSeconds: null },
@@ -122,6 +122,7 @@
     baker:{name:"Baker",shiftWage:30},
     barista:{name:"Barista",shiftWage:25},
     driveThrough:{name:"Drive-Through Worker",shiftWage:30},
+    cashier:{name:"Cashier",shiftWage:25},
   };
 
   const SKILL_LEVELS = [
@@ -766,6 +767,21 @@
         if(DIFFICULTIES[this.state.difficulty].patience!==null) customer.patience=DIFFICULTIES[this.state.difficulty].patience;
         this.save();
         this.announce(`${current.customerName}'s ${current.itemName} is ready to serve.`);
+
+        const cashier=this.getAssignedCashier();
+        if(cashier){
+          setTimeout(()=>{
+            if(!this.state.shift.active || this.state.shift.servicePaused) return;
+            const readyOrder=this.state.orders.find(o=>o.id===current.id&&o.status==="ready");
+            if(!readyOrder) return;
+            const result=this.serveOrder(readyOrder.id);
+            if(result.ok){
+              cashier.taskXp=(cashier.taskXp||0)+1;
+              this.announce(`${cashier.name}, Cashier, completed checkout. ${result.message}`);
+              this.notifyStateChanged();
+            }
+          },700);
+        }
         this.notifyStateChanged();
       },seconds*1000);
 
@@ -879,7 +895,7 @@
         const unlocked=MENU.filter(i=>this.menuUnlockLevel(i.id)===this.state.level).map(i=>i.name);
         const machineUnlocks=Object.values(MACHINES).filter(m=>m.unlockLevel===this.state.level).map(m=>m.name);
         const parts=[`Café Management Level ${this.state.level} reached.`];
-        if(rewards.length) parts.push(rewards.join(" "));
+        if(rewards.length) parts.push(`Level bonus awarded. ${rewards.join(" ")}`);
         if(unlocked.length) parts.push(`New menu unlocks: ${unlocked.join(", ")}.`);
         if(machineUnlocks.length) parts.push(`New machine available to purchase: ${machineUnlocks.join(", ")}.`);
         if(expansion.nextMilestone) parts.push(`Coming later at Level ${expansion.nextMilestone.level}: ${expansion.nextMilestone.text}.`);
@@ -1237,6 +1253,18 @@
       return {ok:true,message:`${employee.name} ${selected?"removed from":"assigned to"} the next shift.`};
     }
 
+    hasAssignedCashier() {
+      return this.getSelectedEmployees().some(e=>e.role==="cashier");
+    }
+
+    getAssignedCashier() {
+      return this.getSelectedEmployees().find(e=>e.role==="cashier") || null;
+    }
+
+    getAssignedManager() {
+      return this.getSelectedEmployees().find(e=>e.promotedManager) || null;
+    }
+
     getSelectedEmployees() {
       return this.state.employees.filter(e=>this.state.selectedEmployeeIds.includes(e.id));
     }
@@ -1258,6 +1286,7 @@
     promoteManager(employeeId) {
       const employee=this.state.employees.find(e=>e.id===employeeId);
       if(!employee) return {ok:false,message:"Employee not found."};
+      if(this.state.level<10) return {ok:false,message:"Café Manager promotions unlock at Café Level 10."};
       if(!employee.managerEligible) return {ok:false,message:`${employee.name} must reach Expert before becoming Manager.`};
       employee.promotedManager=true;
       employee.shiftWage+=25;
