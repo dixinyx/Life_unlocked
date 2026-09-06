@@ -2,7 +2,7 @@
 "use strict";
 (() => {
   const SAVE_KEY = "lifeUnlockedCafeV10";
-  const VERSION = "10.8";
+  const VERSION = "10.8.1";
 
   const DIFFICULTIES = {
     beginner: { name: "Beginner", patience: null, arrivalSeconds: null },
@@ -46,6 +46,24 @@
     { id:"peanutButterCookie", name:"Peanut Butter Cookie", price:4, prepSeconds:1, bakery:true },
     { id:"oatmealCookie", name:"Oatmeal Cookie", price:4, prepSeconds:1, bakery:true }
   ];
+
+  const MENU_UNLOCK_LEVELS = {
+    coffee:1, tea:1, hotChocolate:1, grilledCheese:1, sandwich:1,
+    blueberryMuffin:1, chocolateChipMuffin:1,
+    latte:2, chocolateChipCookie:2,
+    cappuccino:3, croissant:3, chocolateDonut:3,
+    fruitSmoothie:3,
+    mocha:4, cinnamonRoll:4, peanutButterCookie:4, cheeseDanish:4,
+    icedCappuccino:5, oatmealCookie:5
+  };
+
+  const MACHINE_REQUIREMENTS = {
+    coffee:"coffeeMachine", latte:"coffeeMachine", cappuccino:"coffeeMachine",
+    icedCappuccino:"coffeeMachine", mocha:"coffeeMachine",
+    tea:"hotDrinkStation", hotChocolate:"hotDrinkStation",
+    fruitSmoothie:"blender",
+    grilledCheese:"grill", sandwich:"grill"
+  };
 
   const SUPPLIES = {
     coffeeBeans:{name:"Coffee Beans",unitCost:4},
@@ -100,7 +118,8 @@
   const EMPLOYEE_ROLES = {
     cleaner:{name:"Cleaner",shiftWage:20},
     baker:{name:"Baker",shiftWage:30},
-    barista:{name:"Barista",shiftWage:25}
+    barista:{name:"Barista",shiftWage:25},
+    driveThrough:{name:"Drive-Through Worker",shiftWage:30},
   };
 
   const SKILL_LEVELS = [
@@ -622,6 +641,7 @@
 
     menuAvailable() {
       return MENU.filter(item=>{
+        if(!this.isMenuItemUnlocked(item.id)) return false;
         if(item.bakery) return (this.state.bakeryStock[item.id]||0)>0;
         return Object.entries(item.supply||{}).every(([id,qty])=>(this.state.supplies[id]||0)>=qty);
       });
@@ -769,6 +789,7 @@
       if(!table) return;
       table.status="dirty";
       table.customerId=null;
+      this.announce(`${customer.name} left Table ${table.number}. Table ${table.number} needs cleaning.`);
 
       const cleaner=this.getSelectedEmployees().find(e=>e.role==="cleaner");
       if(cleaner && this.state.shift.active) {
@@ -819,7 +840,18 @@
       const before=this.state.level;
       this.state.xp+=amount;
       this.state.level=levelFromXp(this.state.xp);
-      if(this.state.level>before) this.announce(`Café Management Level ${this.state.level} reached.`);
+      if(this.state.level>before) {
+        const rewards=this.claimLevelRewards();
+        const expansion=this.getCafeExpansionInfo();
+        const unlocked=MENU.filter(i=>this.menuUnlockLevel(i.id)===this.state.level).map(i=>i.name);
+        const machineUnlocks=Object.values(MACHINES).filter(m=>m.unlockLevel===this.state.level).map(m=>m.name);
+        const parts=[`Café Management Level ${this.state.level} reached.`];
+        if(rewards.length) parts.push(rewards.join(" "));
+        if(unlocked.length) parts.push(`New menu unlocks: ${unlocked.join(", ")}.`);
+        if(machineUnlocks.length) parts.push(`New machine available: ${machineUnlocks.join(", ")}.`);
+        if(expansion.nextMilestone) parts.push(`Next major level ${expansion.nextMilestone.level}: ${expansion.nextMilestone.text}.`);
+        this.announce(parts.join(" "));
+      }
     }
 
     isMenuItemUnlocked(id) {
@@ -853,15 +885,14 @@
       if(level>=35) maxTables=10;
 
       const milestones=[
-        {level:2,text:"Latte and Chocolate Chip Cookies"},
-        {level:3,text:"Cappuccino, Croissants, and Chocolate Donuts"},
-        {level:4,text:"Mocha, Cinnamon Rolls, and Cheese Danish"},
-        {level:5,text:"Iced Cappuccino and Bake All"},
-        {level:8,text:"Smart Bake"},
-        {level:10,text:"Café expansion: 6-table capacity"},
-        {level:15,text:"Catering Services"},
-        {level:20,text:"Café expansion: 8-table capacity"},
-        {level:35,text:"Café expansion: 10-table capacity"}
+        {level:2,text:"Latte and Chocolate Chip Cookie unlocks; larger orders begin gradually"},
+        {level:3,text:"Cappuccino, Croissant, Chocolate Donut, Fruit Smoothie, and Blender access"},
+        {level:4,text:"Mocha, Cinnamon Roll, Peanut Butter Cookie, and Cheese Danish unlocks"},
+        {level:5,text:"Iced Cappuccino and Bake All unlock; combo orders become more important"},
+        {level:8,text:"Smart Bake unlock; prepare for larger group customers"},
+        {level:10,text:"Major Café expansion: 6-table capacity and more demanding service"},
+        {level:20,text:"Major Café expansion: 8-table capacity"},
+        {level:35,text:"Major Café expansion: 10-table capacity"}
       ];
       const next=milestones.find(m=>m.level>level) || null;
       return {maxTables,nextMilestone:next};

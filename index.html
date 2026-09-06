@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Life Unlocked Version 10.8</title>
+<title>Life Unlocked Version 10.8.1</title>
 <style>
 body{font-family:system-ui,sans-serif;line-height:1.5;padding:1rem;max-width:58rem;margin:auto}
 button,input,select{font:inherit;padding:.7rem;margin:.35rem 0}
@@ -16,7 +16,7 @@ button{display:block;width:100%;text-align:left}
 </head>
 <body>
 <h1>Life Unlocked</h1>
-<p>Version 10.8 Café Progression Build</p>
+<p>Version 10.8.1 Café Repair Build</p>
 <div id="game-live-region" role="status" aria-live="polite" aria-atomic="true"></div>
 <div id="cafe-live-region" role="status" aria-live="polite" aria-atomic="true"></div>
 
@@ -91,6 +91,7 @@ button{display:block;width:100%;text-align:left}
 <button onclick="repeatOrder()">Repeat Current Order</button>
 <button onclick="urgentCustomer()">Most Urgent Customer</button>
 <button onclick="announceStatus()">Café Status</button>
+<button onclick="announceCurrentShiftStatus()">Current Shift Summary</button>
 <button id="clean-table-button" onclick="cleanTable()">Clean Next Table</button>
 <button onclick="openStorage()">Inventory and Storage</button>
 <button onclick="openBakery()">Bakery</button>
@@ -140,6 +141,7 @@ button{display:block;width:100%;text-align:left}
 <option value="cleaner">Cleaner</option>
 <option value="baker">Baker</option>
 <option value="barista">Barista</option>
+<option value="driveThrough">Drive-Through Worker</option>
 </select>
 </label>
 <h3>Hired Employees</h3><div id="employee-list"></div>
@@ -308,8 +310,9 @@ function saveAll(){
 }
 
 function updateMain(){
+  const player=lifeUnlockedGame.state.player||{};
   document.getElementById("main-summary").textContent=
-    `Version 10.7. ${lifeUnlockedGame.state.player.name||"Player"}. ${LifeUnlockedWorld.getDateTimeLabel()}. Personal Money ${LifeUnlockedWorld.state.money.personal}.`;
+    `Version 10.8.1. Character ${player.name||"Player"}. Age ${player.age||"unknown"}. ${LifeUnlockedWorld.getDateTimeLabel()}. Personal Money ${LifeUnlockedWorld.state.money.personal}.`;
 }
 
 function comingSoon(){show("coming");}
@@ -318,8 +321,9 @@ function openCafe(){
   cafeGame.checkBakeryJobs();
   const idle=cafeGame.checkIdleShift();
   if(idle.ok) announce(idle.message);
+  const player=lifeUnlockedGame.state.player||{};
   document.getElementById("cafe-summary").textContent=
-    `Café Level ${cafeGame.state.level}. XP ${cafeGame.state.xp}. Café money ${cafeGame.state.businessMoney}. Personal Money ${LifeUnlockedWorld.state.money.personal}. Difficulty ${CAFE_DIFFICULTIES[cafeGame.state.difficulty].name}.`;
+    `${player.name||"Player"}. ${LifeUnlockedWorld.getDateTimeLabel()}. Café Level ${cafeGame.state.level}. XP ${cafeGame.state.xp}. Café money ${cafeGame.state.businessMoney}. Personal Money ${LifeUnlockedWorld.state.money.personal}. Difficulty ${CAFE_DIFFICULTIES[cafeGame.state.difficulty].name}.`;
   show("cafe");
 }
 
@@ -393,19 +397,9 @@ function renderShift(){
   }
 }
 
-function openEndShiftConfirmation(){show("confirm-end-shift");}
-function cancelEndShift(){renderShift();show("shift");announce("Shift continues.");}
-function confirmEndShift(){const r=cafeGame.endShift();openCafe();announce(r.message);}
-
-function openStorage(){renderStorage();show("storage");}
-function renderStorage(){
-  const box=document.getElementById("storage-list");box.innerHTML="";
-  Object.keys(CAFE_SUPPLIES).forEach(id=>{
-    const q=cafeGame.restockQuote(id);
-    const c=makeCard(q.name,`${q.current} of ${q.target}. Unit cost ${q.unitCost}. Needs ${q.missing}. Full replenish cost ${q.cost}.`);
-    c.appendChild(makeButton(`Replenish ${q.name}`,()=>{const r=cafeGame.replenish(id);announce(r.message);renderStorage();},q.missing===0));
-    box.appendChild(c);
-  });
+function openEndShiftConfirmation(){
+  cafeGame.pauseCustomerService();
+  show("confirm-end-shift");
 }
 function replenishAll(){const r=cafeGame.replenishAll();announce(r.message);renderStorage();}
 function smartReplenish(){const r=cafeGame.smartReplenish();announce(r.message);renderStorage();}
@@ -413,15 +407,17 @@ function smartReplenish(){const r=cafeGame.smartReplenish();announce(r.message);
 function openBakery(){renderBakery();show("bakery");}
 function renderBakery(){
   cafeGame.checkBakeryJobs();
-  const active=cafeGame.state.bakeryJobs.length;
-  document.getElementById("bakery-summary").textContent=`${active} bakery jobs currently running. Real-time baking continues while the game is closed.`;
   const box=document.getElementById("bakery-list");box.innerHTML="";
-  cafeGame.availableBakeryItems().forEach(([id,def])=>{
+  document.getElementById("bakery-summary").textContent=`Bakery stock and progression. Café Level ${cafeGame.state.level}.`;
+  Object.entries(CAFE_BAKERY).forEach(([id,def])=>{
+    const locked=def.unlockLevel>cafeGame.state.level;
     const stock=cafeGame.state.bakeryStock[id]||0;
     const job=cafeGame.state.bakeryJobs.find(j=>j.itemId===id);
-    const desc=`Finished stock ${stock}. Batch size ${def.batch}. Real-time bake time ${def.minutes} minutes.${job?` A batch is currently baking.`:""}`;
+    const desc=locked
+      ? `Locked. Unlocks at Café Level ${def.unlockLevel}.`
+      : `Unlocked. Finished stock ${stock}. Batch size ${def.batch}. Real-time bake time ${def.minutes} minutes.${job?` A batch is currently baking.`:""}`;
     const c=makeCard(def.name,desc);
-    c.appendChild(makeButton(`Bake ${def.name}`,()=>{const r=cafeGame.startBake(id,false);announce(r.message);renderBakery();},Boolean(job)));
+    if(!locked)c.appendChild(makeButton(`Bake ${def.name}`,()=>{const r=cafeGame.startBake(id,false);announce(r.message);renderBakery();},Boolean(job)));
     box.appendChild(c);
   });
 }
@@ -490,12 +486,19 @@ function checkIdle(){const r=cafeGame.checkIdleShift();announce(r.message);rende
 
 function openCafeProgress(){
   const p=cafeGame.getProgressSummary();
-  const nextText=p.toNext>0?`${p.toNext} XP until the next level.`:"Highest defined management level reached.";
-  const expansion=p.expansion;
   const goal=cafeGame.customerGoalProgress();
-  const nextExpansion=expansion.nextMilestone?`Next major unlock: Level ${expansion.nextMilestone.level}, ${expansion.nextMilestone.text}.`:"All currently defined major Café expansions unlocked.";
+  const milestones=[
+    "Level 2: Latte and Chocolate Chip Cookie. Larger orders begin gradually.",
+    "Level 3: Cappuccino, Croissant, Chocolate Donut, Fruit Smoothie, and Blender access.",
+    "Level 4: Mocha, Cinnamon Roll, Peanut Butter Cookie, and Cheese Danish.",
+    "Level 5: Iced Cappuccino and Bake All. Combo orders become more important.",
+    "Level 8: Smart Bake. Prepare for larger group customers.",
+    "Level 10: Major Café expansion to 6-table capacity.",
+    "Level 20: Major Café expansion to 8-table capacity.",
+    "Level 35: Major Café expansion to 10-table capacity."
+  ];
   document.getElementById("progress-summary").textContent=
-    `Café Management Level ${p.level}. ${p.xp} XP. ${nextText} Customer goal ${goal.served} of ${goal.goal} served this shift.  Café Rating ${p.cafeRating} out of 5. Current table capacity ${expansion.maxTables}. Maximum machines per type 4. ${nextExpansion} Lifetime customers served ${p.lifetimeCustomers}. Lifetime sales ${p.lifetimeSales} coins. Lifetime tips ${p.lifetimeTips} coins. Hired employees ${p.employees}. Café Business Money ${p.businessMoney}. Café debt ${p.debt}.`;
+    `Current Café Level ${p.level}. ${p.xp} XP. ${p.toNext} XP to next level. Customers served this shift ${goal.served} of ${goal.goal}. Lifetime customers ${p.lifetimeCustomers}. Café rating ${p.cafeRating} out of 5. Café money ${p.businessMoney}. Upcoming Café Levels. ${milestones.join(" ")}`;
   show("cafe-progress");
 }
 
