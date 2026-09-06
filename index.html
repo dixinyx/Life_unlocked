@@ -1,22 +1,24 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Life Unlocked Version 10.1</title>
+<title>Life Unlocked Version 10.7</title>
 <style>
-body{font-family:system-ui,sans-serif;line-height:1.5;padding:1rem;max-width:55rem;margin:auto}
+body{font-family:system-ui,sans-serif;line-height:1.5;padding:1rem;max-width:58rem;margin:auto}
 button,input,select{font:inherit;padding:.7rem;margin:.35rem 0}
 button{display:block;width:100%;text-align:left}
 .screen[hidden]{display:none}
 .card{border:1px solid #777;padding:.75rem;margin:.6rem 0}
+.summary{font-weight:600}
 </style>
 </head>
 <body>
 <h1>Life Unlocked</h1>
-<p>Version 10.1 Café Repair Build</p>
-<div id="game-live-region" role="status" aria-live="polite"></div>
-<div id="cafe-live-region" role="status" aria-live="polite"></div>
+<p>Version 10.7 Simple Economy Build</p>
+<div id="game-live-region" role="status" aria-live="polite" aria-atomic="true"></div>
+<div id="cafe-live-region" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <main>
 <section id="screen-welcome" class="screen">
@@ -40,7 +42,7 @@ button{display:block;width:100%;text-align:left}
 
 <section id="screen-main" class="screen" hidden>
 <h2 tabindex="-1">Main Menu</h2>
-<p id="main-summary"></p>
+<p id="main-summary" class="summary"></p>
 <button onclick="openCafe()">Café</button>
 <button onclick="openHotel()">Hotel</button>
 <button onclick="comingSoon()">My Home — Coming Soon</button>
@@ -49,28 +51,121 @@ button{display:block;width:100%;text-align:left}
 
 <section id="screen-cafe" class="screen" hidden>
 <h2 tabindex="-1">Café Dashboard</h2>
-<p id="cafe-summary"></p>
+<p id="cafe-summary" class="summary"></p>
 <button onclick="startShift('counter')">Start Café Shift</button>
 <button onclick="startShift('driveThru')">Start Drive-Thru Shift</button>
 <button onclick="resumeShift()">Resume Already Started Shift</button>
+<button onclick="openStorage()">Inventory and Storage</button>
+<button onclick="openBakery()">Bakery</button>
+<button onclick="openMachines()">Machines and Upgrades</button>
+<button onclick="openEmployees()">Employees and Shift Staff</button>
+<button onclick="openIdle()">Idle Shift</button>
+<button onclick="openCafeProgress()">Café Statistics and Management Progress</button>
+<button onclick="openCafeFinances()">Café Finances</button>
+<button onclick="openCafeSettings()">Café Settings and Accessibility</button>
+<button onclick="show('main')">Back to Main Menu</button>
+</section>
+
+<section id="screen-cafe-settings" class="screen" hidden>
+<h2 tabindex="-1">Café Settings and Accessibility</h2>
 <label>Difficulty <select id="difficulty"><option value="beginner">Beginner</option><option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option><option value="expert">Expert</option></select></label>
 <button onclick="saveDifficulty()">Save Difficulty</button>
-<button onclick="show('main')">Back to Main Menu</button>
+<label>Owner pay percentage <input id="owner-pay" type="number" min="0" max="100" value="20"></label>
+<button onclick="saveOwnerPay()">Save Owner Pay</button>
+<label><input id="game-voice" type="checkbox"> Game Voice</label>
+<label>Game Voice speed <input id="voice-rate" type="number" min="0.5" max="3" step="0.1" value="1.4"></label>
+<button onclick="saveGameVoice()">Save Game Voice Settings</button>
+<p>Game Voice speaks automatic gameplay events. NVDA or another screen reader remains responsible for menus, headings, buttons, and navigation.</p>
+<button onclick="openCafe()">Back to Café</button>
 </section>
 
 <section id="screen-shift" class="screen" hidden>
 <h2 tabindex="-1">Active Café Shift</h2>
-<p id="shift-status"></p>
-<p>All actions below are available as buttons and work fully with Tab and screen-reader navigation. Optional shortcuts for desktop keyboards with NVDA: Alt+T Take Order. Alt+P Prepare. Alt+S Serve. Alt+R Repeat Order. Alt+C Status. Alt+N New Customer. These shortcuts are not available on iPhone with VoiceOver and a Bluetooth keyboard — please use the buttons instead.</p>
+<p id="shift-status" class="summary"></p>
+<p>Optional desktop shortcuts during a shift: Alt+T Take Order. Alt+P Prepare. Alt+S Serve. Alt+R Repeat. Alt+C Status. Alt+N New Customer. Alt+L Clean Table. Alt+U Most Urgent Customer. Café navigation shortcuts work throughout the Café area: Alt+I Inventory. Alt+M Machines. Alt+B Bakery. Alt+E Employees. Alt+F Finances. Alt+G Statistics and Progress.</p>
 <button onclick="newCustomer()">New Customer</button>
 <button id="take-button" onclick="takeOrder()">Take Next Order</button>
 <button id="prepare-button" onclick="prepareOrder()">Prepare Next Order</button>
 <button id="serve-button" onclick="serveOrder()">Serve Next Ready Order</button>
 <button onclick="repeatOrder()">Repeat Current Order</button>
+<button onclick="urgentCustomer()">Most Urgent Customer</button>
 <button onclick="announceStatus()">Café Status</button>
+<button id="clean-table-button" onclick="cleanTable()">Clean Next Table</button>
+<button onclick="openStorage()">Inventory and Storage</button>
+<button onclick="openBakery()">Bakery</button>
+<button onclick="openMachines()">Machines</button>
 <h3>Customers</h3><div id="customers"></div>
 <h3>Orders</h3><div id="orders"></div>
-<button onclick="endShift()">End Shift</button>
+<h3>Tables</h3><div id="tables"></div>
+<button onclick="openEndShiftConfirmation()">End Shift</button>
+</section>
+
+<section id="screen-confirm-end-shift" class="screen" hidden>
+<h2 tabindex="-1">End Café Shift?</h2>
+<p>Are you sure you want to end the current shift? Customers and unfinished orders will be cleared.</p>
+<button onclick="cancelEndShift()">Continue Shift</button>
+<button onclick="confirmEndShift()">End Shift</button>
+</section>
+
+<section id="screen-storage" class="screen" hidden>
+<h2 tabindex="-1">Inventory and Storage</h2>
+<button onclick="replenishAll()">Replenish All to 500</button>
+<button onclick="smartReplenish()">Smart Replenish</button>
+<div id="storage-list"></div>
+<button onclick="returnCafeContext()">Back</button>
+</section>
+
+<section id="screen-bakery" class="screen" hidden>
+<h2 tabindex="-1">Bakery</h2>
+<p id="bakery-summary"></p>
+<button onclick="bakeAll()">Bake All — unlocks at Café Level 5</button>
+<button onclick="smartBake()">Smart Bake — unlocks at Café Level 8</button>
+<div id="bakery-list"></div>
+<button onclick="returnCafeContext()">Back</button>
+</section>
+
+<section id="screen-machines" class="screen" hidden>
+<h2 tabindex="-1">Machines and Upgrades</h2>
+<div id="machine-list"></div>
+<button onclick="returnCafeContext()">Back</button>
+</section>
+
+<section id="screen-employees" class="screen" hidden>
+<h2 tabindex="-1">Employees and Shift Staff</h2>
+<p>Selected employees automatically work in the background during Active and Idle shifts.</p>
+<label>Applicant type
+<select id="employee-role-filter" onchange="renderEmployees()">
+<option value="all">All employee types</option>
+<option value="cleaner">Cleaner</option>
+<option value="baker">Baker</option>
+<option value="barista">Barista</option>
+</select>
+</label>
+<h3>Hired Employees</h3><div id="employee-list"></div>
+<h3>Applicants</h3><div id="candidate-list"></div>
+<button onclick="refreshApplicants()">Refresh Applicants</button>
+<button onclick="openCafe()">Back to Café</button>
+</section>
+
+<section id="screen-idle" class="screen" hidden>
+<h2 tabindex="-1">Idle Shift</h2>
+<p id="idle-status"></p>
+<div id="idle-options"></div>
+<button onclick="checkIdle()">Check Idle Shift</button>
+<button onclick="openCafe()">Back to Café</button>
+</section>
+
+<section id="screen-cafe-progress" class="screen" hidden>
+<h2 tabindex="-1">Café Statistics and Management Progress</h2>
+<p id="progress-summary"></p>
+<button onclick="openCafe()">Back to Café</button>
+</section>
+
+<section id="screen-cafe-finances" class="screen" hidden>
+<h2 tabindex="-1">Café Finances</h2>
+<p>Life Unlocked handles money automatically. Sales go to the Café, tips go to Personal Money, employee wages and business expenses come from Café money, and owner pay is transferred automatically after a shift.</p>
+<p id="finance-summary"></p>
+<button onclick="openCafe()">Back to Café</button>
 </section>
 
 <section id="screen-hotel" class="screen" hidden>
@@ -91,18 +186,47 @@ button{display:block;width:100%;text-align:left}
 </main>
 
 <script src="world.js"></script>
+<script src="economy.js"></script>
 <script src="cafe.js"></script>
 <script src="hotel.js"></script>
 <script src="game.js"></script>
 <script>
 "use strict";
-const screenIds=["welcome","new-game","main","cafe","shift","hotel","coming"];
+
+const screenIds=["welcome","new-game","main","cafe","cafe-settings","shift","confirm-end-shift","storage","bakery","machines","employees","idle","cafe-progress","cafe-finances","hotel","coming"];
+
+const cafeAreaScreens=new Set(["cafe","cafe-settings","shift","confirm-end-shift","storage","bakery","machines","employees","idle","cafe-progress","cafe-finances"]);
+
+function isCafeAreaScreen(name){return cafeAreaScreens.has(name);}
+
+function shouldPauseCustomerServiceForScreen(name){
+  return cafeGame.state.shift.active && isCafeAreaScreen(name) && name!=="shift" && name!=="confirm-end-shift";
+}
+
+function syncCustomerServiceWithScreen(name){
+  if(!cafeGame.state.shift.active) return;
+  if(shouldPauseCustomerServiceForScreen(name)) {
+    if(cafeGame.pauseCustomerService()) announce("Customer activity paused while you manage the café.");
+  } else if(name==="shift") {
+    if(cafeGame.resumeCustomerService()) announce("Active café service resumed.");
+  }
+}
+
+function clearStaleLiveRegionText(){
+  const gameLive=document.getElementById("game-live-region");
+  const cafeLive=document.getElementById("cafe-live-region");
+  if(gameLive) gameLive.textContent="";
+  if(cafeLive && !cafeGame.state.settings.gameVoice) cafeLive.textContent="";
+}
 
 function show(name){
+  clearStaleLiveRegionText();
   screenIds.forEach(id=>{
     const el=document.getElementById("screen-"+id);
     if(el) el.hidden=id!==name;
   });
+  syncCustomerServiceWithScreen(name);
+
   const target=document.getElementById("screen-"+name);
   if(target){
     const h=target.querySelector("h2");
@@ -114,6 +238,20 @@ function announce(text){
   const live=document.getElementById("game-live-region");
   live.textContent="";
   setTimeout(()=>live.textContent=String(text||""),10);
+}
+
+function makeButton(label,handler,disabled=false){
+  const b=document.createElement("button");
+  b.type="button";b.textContent=label;b.disabled=disabled;b.onclick=handler;
+  return b;
+}
+
+function makeCard(title,description){
+  const a=document.createElement("article");
+  a.className="card";
+  const h=document.createElement("h3");h.textContent=title;a.appendChild(h);
+  if(description){const p=document.createElement("p");p.textContent=description;a.appendChild(p);}
+  return a;
 }
 
 function startGame(){
@@ -131,153 +269,224 @@ function startGame(){
   LifeUnlockedWorld.reset(profile);
   cafeGame.reset();
   HotelGame.reset();
-  updateMain();
-  show("main");
+  updateMain();show("main");
 }
 
 function continueGame(){
-  lifeUnlockedGame.load();
-  LifeUnlockedWorld.load();
-  cafeGame.load();
-  HotelGame.load();
+  lifeUnlockedGame.load();LifeUnlockedWorld.load();cafeGame.load();HotelGame.load();
   cafeGame.ensureTimersForActiveShift();
-  updateMain();
-  show("main");
+  cafeGame.checkBakeryJobs();
+  cafeGame.checkIdleShift();
+  updateMain();show("main");
 }
 
 function saveAll(){
-  lifeUnlockedGame.save();
-  LifeUnlockedWorld.save();
-  cafeGame.save();
-  HotelGame.save();
+  lifeUnlockedGame.save();LifeUnlockedWorld.save();cafeGame.save();HotelGame.save();
   announce("Everything saved.");
 }
 
 function updateMain(){
-  const w=LifeUnlockedWorld.state;
   document.getElementById("main-summary").textContent=
-    `Version 10.1. ${lifeUnlockedGame.state.player.name||"Player"}. ${LifeUnlockedWorld.getDateTimeLabel()}. Personal Money ${w.money.personal}.`;
+    `Version 10.7. ${lifeUnlockedGame.state.player.name||"Player"}. ${LifeUnlockedWorld.getDateTimeLabel()}. Personal Money ${LifeUnlockedWorld.state.money.personal}.`;
 }
 
 function comingSoon(){show("coming");}
 
 function openCafe(){
-  document.getElementById("difficulty").value=cafeGame.state.difficulty;
+  cafeGame.checkBakeryJobs();
+  const idle=cafeGame.checkIdleShift();
+  if(idle.ok) announce(idle.message);
   document.getElementById("cafe-summary").textContent=
-    `Café money ${cafeGame.state.businessMoney}. Difficulty ${CAFE_DIFFICULTIES[cafeGame.state.difficulty].name}.`;
+    `Café Level ${cafeGame.state.level}. XP ${cafeGame.state.xp}. Café money ${cafeGame.state.businessMoney}. Personal Money ${LifeUnlockedWorld.state.money.personal}. Difficulty ${CAFE_DIFFICULTIES[cafeGame.state.difficulty].name}.`;
   show("cafe");
 }
 
-function saveDifficulty(){
-  const r=cafeGame.setDifficulty(document.getElementById("difficulty").value);
+function openCafeSettings(){
+  document.getElementById("difficulty").value=cafeGame.state.difficulty;
+  document.getElementById("owner-pay").value=cafeGame.state.ownerPayPercent;
+  document.getElementById("game-voice").checked=cafeGame.state.settings.gameVoice;
+  document.getElementById("voice-rate").value=cafeGame.state.settings.voiceRate;
+  show("cafe-settings");
+}
+function saveDifficulty(){const r=cafeGame.setDifficulty(document.getElementById("difficulty").value);announce(r.message);}
+function saveOwnerPay(){const r=cafeGame.setOwnerPayPercent(document.getElementById("owner-pay").value);announce(r.message);}
+function saveGameVoice(){
+  const r=cafeGame.setGameVoice(document.getElementById("game-voice").checked,document.getElementById("voice-rate").value);
+  document.getElementById("cafe-live-region").setAttribute("aria-live",cafeGame.state.settings.gameVoice?"off":"polite");
   announce(r.message);
-  openCafe();
 }
 
 function startShift(area){
-  const r=cafeGame.startShift(area);
-  announce(r.message);
+  const r=cafeGame.startShift(area);announce(r.message);
   if(r.ok){renderShift();show("shift");}
 }
-
 function resumeShift(){
   if(!cafeGame.state.shift.active){announce("No active Café shift.");return;}
-  cafeGame.ensureTimersForActiveShift();
-  renderShift();show("shift");
+  cafeGame.ensureTimersForActiveShift();renderShift();show("shift");
 }
-
-function newCustomer(){
-  const r=cafeGame.addCustomer();
-  announce(r.message);
-  renderShift();
-}
-
-function firstCustomer(){
-  return cafeGame.firstCustomerNeedingOrder();
-}
-
-function firstOrder(status){
-  return cafeGame.firstOrder(status);
-}
-
-function takeOrder(){
-  const customer=firstCustomer();
-  if(!customer){announce("No customer is waiting to have an order taken.");return;}
-  const r=cafeGame.takeOrder(customer.id);
-  announce(r.message);
-  renderShift();
-}
-
-function prepareOrder(){
-  const order=firstOrder("waiting");
-  if(!order){announce("No order is waiting to prepare.");return;}
-  const r=cafeGame.prepareOrder(order.id);
-  announce(r.message);
-  renderShift();
-
-  if(r.ok){
-    const poll=setInterval(()=>{
-      renderShift();
-      const latest=cafeGame.state.orders.find(o=>o.id===order.id);
-      if(!latest || latest.status!=="preparing") clearInterval(poll);
-    },250);
-  }
-}
-
-function serveOrder(){
-  const order=firstOrder("ready");
-  if(!order){announce("No order is ready to serve.");return;}
-  const r=cafeGame.serveOrder(order.id);
-  announce(r.message);
-  renderShift();
-}
-
-function repeatOrder(){
-  const order=cafeGame.state.orders.find(o=>o.status!=="served");
-  announce(order ? `${order.customerName}: ${order.itemName}. Status ${order.status}.` : "No current order.");
-}
-
-function announceStatus(){
-  announce(cafeGame.getStatus());
-}
+function newCustomer(){const r=cafeGame.addCustomer();announce(r.message);renderShift();}
+function firstCustomer(){return cafeGame.firstCustomerNeedingOrder();}
+function firstOrder(status){return cafeGame.firstOrder(status);}
+function takeOrder(){const c=firstCustomer();if(!c){announce("No customer is waiting for an order.");return;}const r=cafeGame.takeOrder(c.id);announce(r.message);renderShift();}
+function prepareOrder(){const o=firstOrder("waiting");if(!o){announce("No order is waiting to prepare.");return;}const r=cafeGame.prepareOrder(o.id);announce(r.message);renderShift();if(r.ok){const poll=setInterval(()=>{renderShift();const latest=cafeGame.state.orders.find(x=>x.id===o.id);if(!latest||latest.status!=="preparing")clearInterval(poll);},300);}}
+function serveOrder(){const o=firstOrder("ready");if(!o){announce("No order is ready to serve.");return;}const r=cafeGame.serveOrder(o.id);announce(r.message);renderShift();}
+function repeatOrder(){const o=cafeGame.state.orders.find(o=>o.status!=="served");announce(o?`${o.customerName}: ${o.itemName}. Status ${o.status}.`:"No current order.");}
+function urgentCustomer(){announce(cafeGame.getMostUrgent());}
+function announceStatus(){announce(cafeGame.getStatus());}
+function cleanTable(){const r=cafeGame.cleanNextTable();announce(r.message);renderShift();}
 
 function renderShift(){
-  document.getElementById("shift-status").textContent=
-    `${cafeGame.state.shift.workArea==="driveThru"?"Drive-Thru":"Café"} shift ${cafeGame.state.shift.number}. ${cafeGame.getStatus()}`;
+  cafeGame.checkBakeryJobs();
+  document.getElementById("shift-status").textContent=`${cafeGame.state.shift.workArea==="driveThru"?"Drive-Thru":"Café"} shift ${cafeGame.state.shift.number}. ${cafeGame.getStatus()}`;
 
-  const customers=document.getElementById("customers");
-  customers.innerHTML="";
+  const customers=document.getElementById("customers");customers.innerHTML="";
   cafeGame.getActiveCustomers().forEach(c=>{
-    const p=document.createElement("p");
     const o=cafeGame.getOrderForCustomer(c.id);
-    p.textContent=`${c.name}. ${o ? `Order ${o.status}.` : "Order not taken."}`;
-    customers.appendChild(p);
+    const patience=c.patience===null?"No patience timer":`${Math.max(0,c.patience)} seconds remaining`;
+    const location=cafeGame.state.shift.workArea==="driveThru"
+      ? "Waiting at the drive-through"
+      : c.dineIn
+        ? `Seated at Table ${cafeGame.getTableNumber(c.tableId)}`
+        : "Waiting at the café for takeaway";
+    customers.appendChild(makeCard(c.name,`${c.special?c.special+". ":""}${location}. ${o?`Order ${o.status}.`:"Order not taken."} ${patience}.`));
   });
-  if(!customers.children.length) customers.textContent="No active customers.";
+  if(!customers.children.length)customers.textContent="No active customers.";
 
-  const orders=document.getElementById("orders");
-  orders.innerHTML="";
-  cafeGame.state.orders.filter(o=>o.status!=="served").forEach(o=>{
-    const p=document.createElement("p");
-    p.textContent=`${o.customerName}: ${o.itemName}. Status ${o.status}.`;
-    orders.appendChild(p);
-  });
-  if(!orders.children.length) orders.textContent="No active orders.";
+  const orders=document.getElementById("orders");orders.innerHTML="";
+  cafeGame.state.orders.filter(o=>o.status!=="served").forEach(o=>orders.appendChild(makeCard(`${o.customerName}'s Order`,`${o.itemName}. Status ${o.status}.`)));
+  if(!orders.children.length)orders.textContent="No active orders.";
+
+  const tables=document.getElementById("tables");tables.innerHTML="";
+  cafeGame.state.tables.forEach(t=>tables.appendChild(makeCard(`Table ${t.number}`,t.status)));
 
   document.getElementById("take-button").disabled=!firstCustomer();
   document.getElementById("prepare-button").disabled=!firstOrder("waiting");
   document.getElementById("serve-button").disabled=!firstOrder("ready");
+
+  const cleanButton=document.getElementById("clean-table-button");
+  if(cleanButton){
+    const dirtyCount=cafeGame.state.tables.filter(t=>t.status==="dirty").length;
+    cleanButton.disabled=dirtyCount===0;
+    cleanButton.textContent=dirtyCount===0?"No Tables Need Cleaning":`Clean Next Table — ${dirtyCount} dirty`;
+  }
 }
 
-function endShift(){
-  const r=cafeGame.endShift();
-  announce(r.message);
-  openCafe();
+function openEndShiftConfirmation(){show("confirm-end-shift");}
+function cancelEndShift(){renderShift();show("shift");announce("Shift continues.");}
+function confirmEndShift(){const r=cafeGame.endShift();openCafe();announce(r.message);}
+
+function openStorage(){renderStorage();show("storage");}
+function renderStorage(){
+  const box=document.getElementById("storage-list");box.innerHTML="";
+  Object.keys(CAFE_SUPPLIES).forEach(id=>{
+    const q=cafeGame.restockQuote(id);
+    const c=makeCard(q.name,`${q.current} of ${q.target}. Unit cost ${q.unitCost}. Needs ${q.missing}. Full replenish cost ${q.cost}.`);
+    c.appendChild(makeButton(`Replenish ${q.name}`,()=>{const r=cafeGame.replenish(id);announce(r.message);renderStorage();},q.missing===0));
+    box.appendChild(c);
+  });
 }
+function replenishAll(){const r=cafeGame.replenishAll();announce(r.message);renderStorage();}
+function smartReplenish(){const r=cafeGame.smartReplenish();announce(r.message);renderStorage();}
+
+function openBakery(){renderBakery();show("bakery");}
+function renderBakery(){
+  cafeGame.checkBakeryJobs();
+  const active=cafeGame.state.bakeryJobs.length;
+  document.getElementById("bakery-summary").textContent=`${active} bakery jobs currently running. Real-time baking continues while the game is closed.`;
+  const box=document.getElementById("bakery-list");box.innerHTML="";
+  cafeGame.availableBakeryItems().forEach(([id,def])=>{
+    const stock=cafeGame.state.bakeryStock[id]||0;
+    const job=cafeGame.state.bakeryJobs.find(j=>j.itemId===id);
+    const desc=`Finished stock ${stock}. Batch size ${def.batch}. Real-time bake time ${def.minutes} minutes.${job?` A batch is currently baking.`:""}`;
+    const c=makeCard(def.name,desc);
+    c.appendChild(makeButton(`Bake ${def.name}`,()=>{const r=cafeGame.startBake(id,false);announce(r.message);renderBakery();},Boolean(job)));
+    box.appendChild(c);
+  });
+}
+function bakeAll(){const r=cafeGame.bakeAll();announce(r.message);renderBakery();}
+function smartBake(){const r=cafeGame.smartBake();announce(r.message);renderBakery();}
+
+function openMachines(){renderMachines();show("machines");}
+function renderMachines(){
+  const box=document.getElementById("machine-list");box.innerHTML="";
+  Object.entries(CAFE_MACHINES).forEach(([id,def])=>{
+    const machine=cafeGame.state.machines[id];
+    const tier=cafeGame.machineTier(id);
+    const buyPrice=cafeGame.machinePurchasePrice(id);
+    const c=makeCard(def.name,`${machine.owned} of 4 owned. ${tier.name} tier. Speed multiplier ${tier.speed}. Capacity ${tier.capacity}. Another machine costs ${buyPrice} Café coins.`);
+    if(machine.owned<4)c.appendChild(makeButton(`Buy Another ${def.name} — ${buyPrice} Café coins`,()=>{const r=cafeGame.buyMachine(id);announce(r.message);renderMachines();}));
+    const next=CAFE_MACHINE_TIERS[machine.tierIndex+1];
+    if(next){
+      const price=cafeGame.machineUpgradePrice(id);
+      c.appendChild(makeButton(`Upgrade to ${next.name} — ${price} Café coins`,()=>{const r=cafeGame.upgradeMachine(id);announce(r.message);renderMachines();}));
+    }
+    box.appendChild(c);
+  });
+}
+
+function openEmployees(){renderEmployees();show("employees");}
+function renderEmployees(focusEmployeeId=null){
+  const staff=document.getElementById("employee-list");staff.innerHTML="";
+  cafeGame.state.employees.forEach(e=>{
+    const selected=cafeGame.state.selectedEmployeeIds.includes(e.id);
+    const role=CAFE_EMPLOYEE_ROLES[e.role].name;
+    const c=makeCard(e.name,`${role}. ${e.skillName}. ${e.xp} XP. Shift wage ${e.shiftWage}. ${selected?"Selected for the next shift.":"Not selected for the next shift."}${e.managerEligible?" Manager eligible.":""}`);
+    const button=makeButton(selected?"Remove from Next Shift":"Select for Next Shift",()=>{const r=cafeGame.toggleEmployeeSelection(e.id);announce(r.message);renderEmployees(e.id);});
+    button.id=`employee-select-${e.id}`;
+    c.appendChild(button);
+    if(e.managerEligible&&!e.promotedManager)c.appendChild(makeButton("Promote to Café Manager",()=>{const r=cafeGame.promoteManager(e.id);announce(r.message);renderEmployees(e.id);}));
+    staff.appendChild(c);
+  });
+  if(!staff.children.length)staff.textContent="No employees hired.";
+
+  const candidates=document.getElementById("candidate-list");candidates.innerHTML="";
+  const roleFilter=document.getElementById("employee-role-filter")?.value||"all";
+  cafeGame.candidatesByRole(roleFilter).forEach(e=>{
+    const roleName=CAFE_EMPLOYEE_ROLES[e.role].name;
+    const c=makeCard(e.name,`${roleName}. Beginner. Shift wage ${e.shiftWage}. Hiring cost 100 Café coins.`);
+    c.appendChild(makeButton(`Hire ${e.name} as ${roleName}`,()=>{const r=cafeGame.hireEmployee(e.id);announce(r.message);renderEmployees();}));
+    candidates.appendChild(c);
+  });
+  if(!candidates.children.length)candidates.textContent="No applicants of this type are currently available. Refresh Applicants for a new list.";
+  if(focusEmployeeId)setTimeout(()=>document.getElementById(`employee-select-${focusEmployeeId}`)?.focus(),10);
+}
+function refreshApplicants(){cafeGame.refreshCandidates();cafeGame.save();renderEmployees();announce("Employee applicants refreshed.");}
+
+function openIdle(){renderIdle();show("idle");}
+function renderIdle(){
+  const status=document.getElementById("idle-status");
+  if(cafeGame.state.idle.active){
+    const remaining=Math.max(0,Math.ceil((cafeGame.state.idle.endAt-Date.now())/60000));
+    status.textContent=`Idle Shift active. About ${remaining} minutes remaining.`;
+  } else {
+    status.textContent=`No Idle Shift is active. Current maximum unlocked duration is ${Math.max(...cafeGame.idleOptions().map(o=>o.minutes))} minutes.`;
+  }
+  const box=document.getElementById("idle-options");box.innerHTML="";
+  cafeGame.idleOptions().forEach(o=>box.appendChild(makeButton(`Start Idle Shift: ${o.minutes<60?`${o.minutes} minutes`:`${o.minutes/60} hours`}`,()=>{const r=cafeGame.startIdleShift(o.minutes);announce(r.message);renderIdle();},cafeGame.state.idle.active)));
+}
+function checkIdle(){const r=cafeGame.checkIdleShift();announce(r.message);renderIdle();}
+
+function openCafeProgress(){
+  const p=cafeGame.getProgressSummary();
+  const nextText=p.toNext>0?`${p.toNext} XP until the next level.`:"Highest defined management level reached.";
+  const expansion=p.expansion;
+  const nextExpansion=expansion.nextMilestone?`Next major unlock: Level ${expansion.nextMilestone.level}, ${expansion.nextMilestone.text}.`:"All currently defined major Café expansions unlocked.";
+  document.getElementById("progress-summary").textContent=
+    `Café Management Level ${p.level}. ${p.xp} XP. ${nextText} Café Rating ${p.cafeRating} out of 5. Current table capacity ${expansion.maxTables}. Maximum machines per type 4. ${nextExpansion} Lifetime customers served ${p.lifetimeCustomers}. Lifetime sales ${p.lifetimeSales} coins. Lifetime tips ${p.lifetimeTips} coins. Hired employees ${p.employees}. Café Business Money ${p.businessMoney}. Café debt ${p.debt}.`;
+  show("cafe-progress");
+}
+
+function openCafeFinances(){
+  const s=cafeGame.state;
+  document.getElementById("finance-summary").textContent=
+    `Personal Money ${LifeUnlockedWorld.state.money.personal}. Café Business Money ${s.businessMoney}. Café debt ${s.businessDebt}. Owner pay ${s.ownerPayPercent} percent. Lifetime Café sales ${s.statistics.lifetimeSales}. Lifetime tips ${s.statistics.lifetimeTips}.`;
+  show("cafe-finances");
+}
+
+function returnCafeContext(){if(cafeGame.state.shift.active){renderShift();show("shift");}else openCafe();}
 
 function openHotel(){
-  document.getElementById("hotel-status").textContent=
-    `${HotelGame.state.careerStarted ? "Career started" : "Career not started"}. Role ${HotelGame.state.role}. ${HotelGame.state.shift.active ? "Shift active." : "No active shift."}`;
+  document.getElementById("hotel-status").textContent=`${HotelGame.state.careerStarted?"Career started":"Career not started"}. Role ${HotelGame.state.role}. ${HotelGame.state.shift.active?"Shift active.":"No active shift."}`;
   show("hotel");
 }
 function hotelCareer(){const r=HotelGame.startCareer();announce(r.message);openHotel();}
@@ -286,21 +495,62 @@ function hotelTask(){const r=HotelGame.performTask();announce(r.message);openHot
 function hotelEndShift(){const r=HotelGame.endShift();announce(r.message);openHotel();}
 
 document.addEventListener("keydown",event=>{
-  if(!event.altKey || event.ctrlKey || event.metaKey) return;
-  const shift=document.getElementById("screen-shift");
-  if(!shift || shift.hidden) return;
-  const map={t:takeOrder,p:prepareOrder,s:serveOrder,r:repeatOrder,c:announceStatus,n:newCustomer};
-  const fn=map[String(event.key||"").toLowerCase()];
-  if(fn){event.preventDefault();fn();}
+  if(!event.altKey||event.ctrlKey||event.metaKey)return;
+
+  const current=screenIds.find(id=>{
+    const el=document.getElementById("screen-"+id);
+    return el && !el.hidden;
+  });
+
+  if(!isCafeAreaScreen(current)) return;
+
+  const key=String(event.key||"").toLowerCase();
+  const navigationMap={
+    i:openStorage,
+    m:openMachines,
+    b:openBakery,
+    e:openEmployees,
+    f:openCafeFinances,
+    g:openCafeProgress
+  };
+
+  if(navigationMap[key]){
+    event.preventDefault();
+    navigationMap[key]();
+    return;
+  }
+
+  if(current!=="shift") return;
+
+  const actionMap={
+    t:takeOrder,
+    p:prepareOrder,
+    s:serveOrder,
+    r:repeatOrder,
+    c:announceStatus,
+    n:newCustomer,
+    l:cleanTable,
+    u:urgentCustomer
+  };
+
+  const fn=actionMap[key];
+  if(fn){
+    event.preventDefault();
+    fn();
+  }
 });
 
 cafeGame.onStateChanged=()=>{
   const shift=document.getElementById("screen-shift");
-  if(shift && !shift.hidden) renderShift();
+  const bakery=document.getElementById("screen-bakery");
+  if(shift&&!shift.hidden)renderShift();
+  if(bakery&&!bakery.hidden)renderBakery();
 };
 
 document.getElementById("continue-button").hidden=!lifeUnlockedGame.state.session.setupComplete;
+document.getElementById("cafe-live-region").setAttribute("aria-live",cafeGame.state.settings.gameVoice?"off":"polite");
 cafeGame.ensureTimersForActiveShift();
+setInterval(()=>cafeGame.checkBakeryJobs(),15000);
 show("welcome");
 </script>
 </body>

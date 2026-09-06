@@ -2,14 +2,15 @@
 "use strict";
 (() => {
   const SAVE_KEY = "lifeUnlockedWorldV10";
-  const VERSION = "10.0";
+  const VERSION = "10.7";
 
   const defaults = () => ({
     version: VERSION,
     character: { name: "", age: 18 },
     money: { personal: 1000, savings: 0 },
     date: { year: 1, month: 9, day: 1, minutes: 480 },
-    location: { area: "Willowmere", place: "Willowmere Starter Apartment" }
+    location: { area: "Willowmere", place: "Willowmere Starter Apartment" },
+    transactions: []
   });
 
   function timeLabel(minutes) {
@@ -39,7 +40,8 @@
           ...parsed,
           money: { ...defaults().money, ...(parsed.money || {}) },
           date: { ...defaults().date, ...(parsed.date || {}) },
-          location: { ...defaults().location, ...(parsed.location || {}) }
+          location: { ...defaults().location, ...(parsed.location || {}) },
+          transactions: Array.isArray(parsed.transactions) ? parsed.transactions : []
         };
         this.state.version = VERSION;
         this.save();
@@ -78,9 +80,34 @@
       this.save();
     }
 
-    addPersonalMoney(amount) {
-      this.state.money.personal += Math.max(0, Math.round(Number(amount) || 0));
+    addPersonalMoney(amount, reason = "Income") {
+      const value = Math.max(0, Math.round(Number(amount) || 0));
+      this.state.money.personal += value;
+      this.recordTransaction("income", value, reason);
       this.save();
+      return value;
+    }
+
+    spendPersonalMoney(amount, reason = "Expense") {
+      const value = Math.max(0, Math.round(Number(amount) || 0));
+      if (this.state.money.personal < value) {
+        return { ok: false, message: `You need ${value} Personal coins for ${reason}.` };
+      }
+      this.state.money.personal -= value;
+      this.recordTransaction("expense", value, reason);
+      this.save();
+      return { ok: true, message: `${value} Personal coins paid for ${reason}.` };
+    }
+
+    recordTransaction(type, amount, reason) {
+      this.state.transactions.unshift({
+        id: `tx-${Date.now()}-${Math.random()}`,
+        type,
+        amount,
+        reason,
+        at: Date.now()
+      });
+      if (this.state.transactions.length > 50) this.state.transactions.length = 50;
     }
   }
 
