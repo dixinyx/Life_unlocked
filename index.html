@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Life Unlocked Version 10.8.3</title>
+<title>Life Unlocked Version 10.8.4</title>
 <style>
 body{font-family:system-ui,sans-serif;line-height:1.5;padding:1rem;max-width:58rem;margin:auto}
 button,input,select{font:inherit;padding:.7rem;margin:.35rem 0}
@@ -16,8 +16,9 @@ button{display:block;width:100%;text-align:left}
 </head>
 <body>
 <h1>Life Unlocked</h1>
-<p>Version 10.8.3 Active Play and Accessibility Update</p>
+<p>Version 10.8.4 Economy, Drive-Through and Accessibility Update</p>
 <div id="game-live-region" role="status" aria-live="polite" aria-atomic="true"></div>
+<div id="level-live-region" class="sr-only" role="status" aria-live="assertive" aria-atomic="true"></div>
 <div id="cafe-live-region" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <main>
@@ -84,6 +85,8 @@ button{display:block;width:100%;text-align:left}
 <h2 tabindex="-1">Active Café Shift</h2>
 <p id="shift-status" class="summary"></p>
 <button id="pause-shift-button" onclick="pauseActiveShift()">Pause Shift</button>
+<button onclick="startDriveThrough()">Start Drive-Through Service</button>
+<button onclick="driveThroughProgress()">Drive-Through Progress</button>
 <button id="resume-shift-button" onclick="resumeActiveShiftFromPause()" hidden>Resume Shift</button>
 <button onclick="show('cafe-hotkeys')">Keyboard Commands and Help</button>
 <button onclick="newCustomer()">New Customer</button>
@@ -277,6 +280,13 @@ function show(name){
   }
 }
 
+function announceLevelAccessibility(text){
+  const region=document.getElementById("level-live-region");
+  if(!region)return;
+  region.textContent="";
+  setTimeout(()=>region.textContent=String(text||""),40);
+}
+
 function announce(text){
   const live=document.getElementById("game-live-region");
   live.textContent="";
@@ -353,7 +363,7 @@ function bellmontDateTimeLabel(){
 function updateMain(){
   const player=lifeUnlockedGame.state.player||{};
   document.getElementById("main-summary").textContent=
-    `Version 10.8.3. Character name ${player.name||"Player"}. Age ${player.age||"unknown"}. ${bellmontDateTimeLabel()} Personal Money ${LifeUnlockedWorld.state.money.personal} coins.`;
+    `Version 10.8.4. Character name ${player.name||"Player"}. Age ${player.age||"unknown"}. ${bellmontDateTimeLabel()} Personal Money ${LifeUnlockedWorld.state.money.personal} coins.`;
 }
 
 function openCafeOrMainAfterLoad(){
@@ -469,6 +479,15 @@ function renderShift(){
   }
 }
 
+function startDriveThrough(){
+  const r=cafeGame.startDriveThroughService();
+  announce(r.message);
+}
+function driveThroughProgress(){
+  const d=cafeGame.getDriveThroughProgress();
+  announce(d.active?`Drive-Through active. ${d.customersServed} customers served. ${d.sales} Café coins in sales.`:`Drive-Through is not active. ${d.customersServed} customers served this shift. ${d.sales} Café coins in sales.`);
+}
+
 function pauseActiveShift(){
   if(!cafeGame.state.shift.active){announce("No active Café shift.");return;}
   if(cafeGame.pauseCustomerService()){
@@ -527,10 +546,17 @@ function cancelEndShift(){
 }
 
 function confirmEndShift(){
+  if(cafeGame.updateDriveThroughService)cafeGame.updateDriveThroughService();
+  const shiftBefore=JSON.parse(JSON.stringify(cafeGame.state.shift));
+  const drive=cafeGame.getDriveThroughProgress?cafeGame.getDriveThroughProgress():{customersServed:0,sales:0};
+  const businessBefore=cafeGame.state.businessMoney;
+  const personalBefore=LifeUnlockedWorld.state.money.personal;
   const r=cafeGame.endShift();
-  if(window.LifeUnlockedSave) LifeUnlockedSave.saveAll();
+  if(window.LifeUnlockedSave)LifeUnlockedSave.saveAll();
+  const businessAfter=cafeGame.state.businessMoney;
+  const personalAfter=LifeUnlockedWorld.state.money.personal;
   openCafe();
-  announce(r.message);
+  announce(`End of Shift Report. Main Café customers served ${shiftBefore.served||0}. Drive-Through customers served ${drive.customersServed||0}. Total customers served ${(shiftBefore.served||0)+(drive.customersServed||0)}. Customers who left ${shiftBefore.left||0}. Special customers served ${shiftBefore.specialServed||0}. Drive-Through sales ${drive.sales||0} Café coins. Employee wages ${shiftBefore.payroll||0} Café coins. Operating costs ${shiftBefore.operatingCosts||0} Café coins. Café Business Money change ${businessAfter-businessBefore} coins during shift closeout. Personal Money transferred ${personalAfter-personalBefore} coins during shift closeout. Ending Café Business Money ${businessAfter}. Ending Personal Money ${personalAfter}. ${r.message}`);
 }
 
 function endSavedShift(){
