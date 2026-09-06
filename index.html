@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Life Unlocked Version 10.8.1</title>
+<title>Life Unlocked Version 10.8.2</title>
 <style>
 body{font-family:system-ui,sans-serif;line-height:1.5;padding:1rem;max-width:58rem;margin:auto}
 button,input,select{font:inherit;padding:.7rem;margin:.35rem 0}
@@ -16,7 +16,7 @@ button{display:block;width:100%;text-align:left}
 </head>
 <body>
 <h1>Life Unlocked</h1>
-<p>Version 10.8.1 Café Repair Build</p>
+<p>Version 10.8.2 Stability and Save Build</p>
 <div id="game-live-region" role="status" aria-live="polite" aria-atomic="true"></div>
 <div id="cafe-live-region" role="status" aria-live="polite" aria-atomic="true"></div>
 
@@ -54,7 +54,8 @@ button{display:block;width:100%;text-align:left}
 <p id="cafe-summary" class="summary"></p>
 <button onclick="startShift('counter')">Start Café Shift</button>
 <button onclick="startShift('driveThru')">Start Drive-Thru Shift</button>
-<button onclick="resumeShift()">Resume Already Started Shift</button>
+<button id="resume-saved-shift-button" onclick="resumeShift()">Resume Saved Café Shift</button>
+<button id="end-saved-shift-button" onclick="endSavedShift()">End Saved Café Shift</button>
 <button onclick="openStorage()">Inventory and Storage</button>
 <button onclick="openBakery()">Bakery</button>
 <button onclick="openMachines()">Machines and Upgrades</button>
@@ -137,7 +138,7 @@ button{display:block;width:100%;text-align:left}
 <p>Selected employees automatically work in the background during Active and Idle shifts.</p>
 <label>Applicant type
 <select id="employee-role-filter" onchange="renderEmployees()">
-<option value="all">All employee types</option>
+<option value="">Choose an employee type</option>
 <option value="cleaner">Cleaner</option>
 <option value="baker">Baker</option>
 <option value="barista">Barista</option>
@@ -214,12 +215,13 @@ button{display:block;width:100%;text-align:left}
 <script src="cafe.js"></script>
 <script src="hotel.js"></script>
 <script src="game.js"></script>
+<script src="save.js"></script>
 <script>
 "use strict";
 
-const screenIds=["welcome","new-game","main","cafe","cafe-settings","shift","confirm-end-shift","storage","bakery","machines","employees","idle","cafe-progress","cafe-finances","hotel","coming"];
+const screenIds=["welcome","new-game","main","cafe","cafe-settings","shift","confirm-end-shift","storage","bakery","machines","employees","idle","cafe-progress","cafe-finances","hotel","coming","cafe-tutorial"];
 
-const cafeAreaScreens=new Set(["cafe","cafe-settings","shift","confirm-end-shift","storage","bakery","machines","employees","idle","cafe-progress","cafe-finances"]);
+const cafeAreaScreens=new Set(["cafe","cafe-settings","shift","confirm-end-shift","storage","bakery","machines","employees","idle","cafe-progress","cafe-finances","cafe-tutorial"]);
 
 function isCafeAreaScreen(name){return cafeAreaScreens.has(name);}
 
@@ -250,6 +252,7 @@ function show(name){
     if(el) el.hidden=id!==name;
   });
   syncCustomerServiceWithScreen(name);
+  if(window.LifeUnlockedSave) LifeUnlockedSave.setLastScreen(name);
 
   const target=document.getElementById("screen-"+name);
   if(target){
@@ -293,26 +296,58 @@ function startGame(){
   LifeUnlockedWorld.reset(profile);
   cafeGame.reset();
   HotelGame.reset();
+  if(window.LifeUnlockedSave){
+    LifeUnlockedSave.resetMaster();
+    LifeUnlockedSave.saveAll();
+  }
   updateMain();show("main");
 }
 
 function continueGame(){
-  lifeUnlockedGame.load();LifeUnlockedWorld.load();cafeGame.load();HotelGame.load();
-  cafeGame.ensureTimersForActiveShift();
+  if(window.LifeUnlockedSave) LifeUnlockedSave.restoreAll();
+  lifeUnlockedGame.load();
+  LifeUnlockedWorld.load();
+  cafeGame.load();
+  HotelGame.load();
   cafeGame.checkBakeryJobs();
   cafeGame.checkIdleShift();
-  updateMain();show("main");
+  updateMain();
+  openCafeOrMainAfterLoad();
 }
 
 function saveAll(){
-  lifeUnlockedGame.save();LifeUnlockedWorld.save();cafeGame.save();HotelGame.save();
+  lifeUnlockedGame.save();
+  LifeUnlockedWorld.save();
+  cafeGame.save();
+  HotelGame.save();
+  if(window.LifeUnlockedSave) LifeUnlockedSave.saveAll();
   announce("Everything saved.");
+}
+
+function bellmontDateTimeLabel(){
+  const d=LifeUnlockedWorld.state.date;
+  let hour=Math.floor(d.minutes/60);
+  const minute=d.minutes%60;
+  const suffix=hour>=12?"PM":"AM";
+  hour=hour%12;
+  if(hour===0) hour=12;
+  return `Bellmont calendar. Year ${d.year}. Month ${d.month}. Day ${d.day}. Time ${hour}:${String(minute).padStart(2,"0")} ${suffix}.`;
 }
 
 function updateMain(){
   const player=lifeUnlockedGame.state.player||{};
   document.getElementById("main-summary").textContent=
-    `Version 10.8.1. Character ${player.name||"Player"}. Age ${player.age||"unknown"}. ${LifeUnlockedWorld.getDateTimeLabel()}. Personal Money ${LifeUnlockedWorld.state.money.personal}.`;
+    `Version 10.8.2. Character name ${player.name||"Player"}. Age ${player.age||"unknown"}. ${bellmontDateTimeLabel()} Personal Money ${LifeUnlockedWorld.state.money.personal} coins.`;
+}
+
+function openCafeOrMainAfterLoad(){
+  updateMain();
+  if(cafeGame.state.shift.active){
+    openCafe();
+    announce("Saved Café shift found. Choose Resume Saved Café Shift or End Saved Café Shift.");
+  } else {
+    show("main");
+  }
 }
 
 function comingSoon(){show("coming");}
@@ -323,7 +358,8 @@ function openCafe(){
   if(idle.ok) announce(idle.message);
   const player=lifeUnlockedGame.state.player||{};
   document.getElementById("cafe-summary").textContent=
-    `${player.name||"Player"}. ${LifeUnlockedWorld.getDateTimeLabel()}. Café Level ${cafeGame.state.level}. XP ${cafeGame.state.xp}. Café money ${cafeGame.state.businessMoney}. Personal Money ${LifeUnlockedWorld.state.money.personal}. Difficulty ${CAFE_DIFFICULTIES[cafeGame.state.difficulty].name}.`;
+    `Character ${player.name||"Player"}. ${bellmontDateTimeLabel()} Café Management Level ${cafeGame.state.level}. Café XP ${cafeGame.state.xp}. Café Business Money ${cafeGame.state.businessMoney} coins. Personal Money ${LifeUnlockedWorld.state.money.personal} coins. Difficulty ${CAFE_DIFFICULTIES[cafeGame.state.difficulty].name}.`;
+  updateSavedShiftControls();
   show("cafe");
 }
 
@@ -343,12 +379,30 @@ function saveGameVoice(){
 }
 
 function startShift(area){
-  const r=cafeGame.startShift(area);announce(r.message);
-  if(r.ok){renderShift();show("shift");}
+  if(cafeGame.state.shift.active){
+    announce("A saved Café shift is already active. Choose Resume Saved Café Shift or End Saved Café Shift.");
+    updateSavedShiftControls();
+    return;
+  }
+  const r=cafeGame.startShift(area);
+  announce(r.message);
+  if(r.ok){
+    if(window.LifeUnlockedSave) LifeUnlockedSave.saveAll();
+    renderShift();
+    show("shift");
+  }
 }
 function resumeShift(){
-  if(!cafeGame.state.shift.active){announce("No active Café shift.");return;}
-  cafeGame.ensureTimersForActiveShift();renderShift();show("shift");
+  if(!cafeGame.state.shift.active){
+    announce("No saved Café shift is active.");
+    updateSavedShiftControls();
+    return;
+  }
+  cafeGame.resumeCustomerService();
+  cafeGame.ensureTimersForActiveShift();
+  renderShift();
+  show("shift");
+  announce("Saved Café shift resumed.");
 }
 function newCustomer(){const r=cafeGame.addCustomer();announce(r.message);renderShift();}
 function firstCustomer(){return cafeGame.firstCustomerNeedingOrder();}
@@ -401,6 +455,61 @@ function openEndShiftConfirmation(){
   cafeGame.pauseCustomerService();
   show("confirm-end-shift");
 }
+function openStorage(){renderStorage();show("storage");}
+
+function renderStorage(){
+  const box=document.getElementById("storage-list");
+  box.innerHTML="";
+  Object.keys(CAFE_SUPPLIES).forEach(id=>{
+    const q=cafeGame.restockQuote(id);
+    const c=makeCard(
+      q.name,
+      `${q.current} of ${q.target}. Unit cost ${q.unitCost} Café coins. Needs ${q.missing}. Full replenish cost ${q.cost} Café coins.`
+    );
+    c.appendChild(makeButton(
+      `Replenish ${q.name}`,
+      ()=>{const r=cafeGame.replenish(id);announce(r.message);renderStorage();},
+      q.missing===0
+    ));
+    box.appendChild(c);
+  });
+}
+
+function cancelEndShift(){
+  show("shift");
+  cafeGame.resumeCustomerService();
+  renderShift();
+  announce("Shift resumed.");
+}
+
+function confirmEndShift(){
+  const r=cafeGame.endShift();
+  if(window.LifeUnlockedSave) LifeUnlockedSave.saveAll();
+  openCafe();
+  announce(r.message);
+}
+
+function endSavedShift(){
+  if(!cafeGame.state.shift.active){
+    announce("There is no saved Café shift to end.");
+    updateSavedShiftControls();
+    return;
+  }
+  cafeGame.pauseCustomerService();
+  const r=cafeGame.endShift();
+  if(window.LifeUnlockedSave) LifeUnlockedSave.saveAll();
+  openCafe();
+  announce(`Saved Café shift ended. ${r.message}`);
+}
+
+function updateSavedShiftControls(){
+  const active=Boolean(cafeGame.state.shift.active);
+  const resume=document.getElementById("resume-saved-shift-button");
+  const end=document.getElementById("end-saved-shift-button");
+  if(resume) resume.hidden=!active;
+  if(end) end.hidden=!active;
+}
+
 function replenishAll(){const r=cafeGame.replenishAll();announce(r.message);renderStorage();}
 function smartReplenish(){const r=cafeGame.smartReplenish();announce(r.message);renderStorage();}
 
@@ -426,18 +535,46 @@ function smartBake(){const r=cafeGame.smartBake();announce(r.message);renderBake
 
 function openMachines(){renderMachines();show("machines");}
 function renderMachines(){
-  const box=document.getElementById("machine-list");box.innerHTML="";
+  const box=document.getElementById("machine-list");
+  box.innerHTML="";
+
   Object.entries(CAFE_MACHINES).forEach(([id,def])=>{
-    const machine=cafeGame.state.machines[id];
+    const machine=cafeGame.state.machines[id]||{owned:0,tierIndex:0};
+    const locked=cafeGame.state.level<def.unlockLevel;
     const tier=cafeGame.machineTier(id);
     const buyPrice=cafeGame.machinePurchasePrice(id);
-    const c=makeCard(def.name,`${machine.owned} of 4 owned. ${tier.name} tier. Speed multiplier ${tier.speed}. Capacity ${tier.capacity}. Another machine costs ${buyPrice} Café coins.`);
-    if(machine.owned<4)c.appendChild(makeButton(`Buy Another ${def.name} — ${buyPrice} Café coins`,()=>{const r=cafeGame.buyMachine(id);announce(r.message);renderMachines();}));
-    const next=CAFE_MACHINE_TIERS[machine.tierIndex+1];
-    if(next){
-      const price=cafeGame.machineUpgradePrice(id);
-      c.appendChild(makeButton(`Upgrade to ${next.name} — ${price} Café coins`,()=>{const r=cafeGame.upgradeMachine(id);announce(r.message);renderMachines();}));
+
+    let description="";
+    if(locked){
+      description=`Locked. Unlocks at Café Level ${def.unlockLevel}. You currently own ${machine.owned} of 4.`;
+    } else if(machine.owned===0){
+      description=`Unlocked and available to purchase. Price ${buyPrice} Café coins. You own 0 of 4.`;
+    } else {
+      description=`Owned ${machine.owned} of 4. Current tier ${tier.name}. Speed multiplier ${tier.speed}. Capacity ${tier.capacity}. Another machine costs ${buyPrice} Café coins.`;
     }
+
+    const c=makeCard(def.name,description);
+
+    if(!locked && machine.owned<4){
+      c.appendChild(makeButton(
+        machine.owned===0
+          ? `Buy ${def.name} — ${buyPrice} Café coins`
+          : `Buy Another ${def.name} — ${buyPrice} Café coins`,
+        ()=>{const r=cafeGame.buyMachine(id);announce(r.message);renderMachines();}
+      ));
+    }
+
+    if(!locked && machine.owned>0){
+      const next=CAFE_MACHINE_TIERS[machine.tierIndex+1];
+      if(next){
+        const price=cafeGame.machineUpgradePrice(id);
+        c.appendChild(makeButton(
+          `Upgrade ${def.name} to ${next.name} — ${price} Café coins`,
+          ()=>{const r=cafeGame.upgradeMachine(id);announce(r.message);renderMachines();}
+        ));
+      }
+    }
+
     box.appendChild(c);
   });
 }
@@ -458,14 +595,16 @@ function renderEmployees(focusEmployeeId=null){
   if(!staff.children.length)staff.textContent="No employees hired.";
 
   const candidates=document.getElementById("candidate-list");candidates.innerHTML="";
-  const roleFilter=document.getElementById("employee-role-filter")?.value||"all";
-  cafeGame.candidatesByRole(roleFilter).forEach(e=>{
+  const roleFilter=document.getElementById("employee-role-filter")?.value||"";
+  if(!roleFilter){
+    candidates.textContent="Choose an employee type above to view applicants.";
+  } else cafeGame.candidatesByRole(roleFilter).forEach(e=>{
     const roleName=CAFE_EMPLOYEE_ROLES[e.role].name;
     const c=makeCard(e.name,`${roleName}. Beginner. Shift wage ${e.shiftWage}. Hiring cost 100 Café coins.`);
     c.appendChild(makeButton(`Hire ${e.name} as ${roleName}`,()=>{const r=cafeGame.hireEmployee(e.id);announce(r.message);renderEmployees();}));
     candidates.appendChild(c);
   });
-  if(!candidates.children.length)candidates.textContent="No applicants of this type are currently available. Refresh Applicants for a new list.";
+  if(roleFilter && !candidates.children.length)candidates.textContent="No applicants of this type are currently available. Refresh Applicants for a new list.";
   if(focusEmployeeId)setTimeout(()=>document.getElementById(`employee-select-${focusEmployeeId}`)?.focus(),10);
 }
 function refreshApplicants(){cafeGame.refreshCandidates();cafeGame.save();renderEmployees();announce("Employee applicants refreshed.");}
@@ -573,11 +712,21 @@ cafeGame.onStateChanged=()=>{
   if(bakery&&!bakery.hidden)renderBakery();
 };
 
-document.getElementById("continue-button").hidden=!lifeUnlockedGame.state.session.setupComplete;
+const hasSavedCharacter=window.LifeUnlockedSave
+  ? LifeUnlockedSave.bootstrap()
+  : Boolean(lifeUnlockedGame.state.session.setupComplete);
+
+document.getElementById("continue-button").hidden=!hasSavedCharacter;
 document.getElementById("cafe-live-region").setAttribute("aria-live",cafeGame.state.settings.gameVoice?"off":"polite");
-cafeGame.ensureTimersForActiveShift();
+
+cafeGame.checkBakeryJobs();
 setInterval(()=>cafeGame.checkBakeryJobs(),15000);
-show("welcome");
+
+if(hasSavedCharacter){
+  openCafeOrMainAfterLoad();
+} else {
+  show("welcome");
+}
 
 function announceCurrentShiftStatus(){
   const waiting=(cafeGame.state.customers||[]).filter(c=>!c.served).length;

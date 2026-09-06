@@ -2,7 +2,7 @@
 "use strict";
 (() => {
   const SAVE_KEY = "lifeUnlockedCafeV10";
-  const VERSION = "10.8.1";
+  const VERSION = "10.8.2";
 
   const DIFFICULTIES = {
     beginner: { name: "Beginner", patience: null, arrivalSeconds: null },
@@ -58,8 +58,9 @@
   };
 
   const MACHINE_REQUIREMENTS = {
-    coffee:"coffeeMachine", latte:"coffeeMachine", cappuccino:"coffeeMachine",
-    icedCappuccino:"coffeeMachine", mocha:"coffeeMachine",
+    coffee:"coffeeMachine",
+    latte:"espressoMachine", cappuccino:"espressoMachine",
+    icedCappuccino:"espressoMachine", mocha:"espressoMachine",
     tea:"hotDrinkStation", hotChocolate:"hotDrinkStation",
     fruitSmoothie:"blender",
     grilledCheese:"grill", sandwich:"grill"
@@ -100,6 +101,7 @@
   };
 
   const MACHINES = {
+    espressoMachine:{name:"Espresso Machine",baseCost:300,unlockLevel:2},
     blender:{name:"Blender",baseCost:350,unlockLevel:3},
     coffeeMachine:{name:"Coffee Machine",unlockLevel:1,baseCost:150},
     hotDrinkStation:{name:"Hot Drink Station",unlockLevel:1,baseCost:150},
@@ -154,13 +156,21 @@
 
   function initialBakeryStock() {
     const out = {};
-    Object.keys(BAKERY).forEach(id => out[id] = 6);
+    Object.entries(BAKERY).forEach(([id,def]) => {
+      out[id] = def.unlockLevel <= 1 ? 6 : 0;
+    });
     return out;
   }
 
   function initialMachines() {
     const out = {};
-    Object.keys(MACHINES).forEach(id => out[id] = { owned:1,tierIndex:0 });
+    Object.keys(MACHINES).forEach(id => out[id] = { owned:0,tierIndex:0 });
+
+    // Starter Café equipment.
+    ["coffeeMachine","hotDrinkStation","grill","oven"].forEach(id => {
+      if(out[id]) out[id].owned = 1;
+    });
+
     return out;
   }
 
@@ -179,10 +189,11 @@
       xp:0,
       ownerPayPercent:20,
       lastCustomerName:"",
+      levelWarningAnnouncedFor:null,
       shift:{
         active:false,number:1,workArea:"counter",served:0,sales:0,tips:0,
         operatingCosts:0,payroll:0,specialServed:0,
-        servicePaused:false
+        servicePaused:false,goalAnnounced:false
       },
       customers:[],
       orders:[],
@@ -268,6 +279,16 @@
           bakeryJobs:Array.isArray(parsed.bakeryJobs)?parsed.bakeryJobs:[],
           tables:Array.isArray(parsed.tables)&&parsed.tables.length?parsed.tables:base.tables
         };
+        const previousVersion = String(parsed.version || "");
+
+        // Repair old test saves that incorrectly granted locked machines at Level 1.
+        if(this.state.level < 2 && this.state.machines.espressoMachine) {
+          this.state.machines.espressoMachine.owned = 0;
+        }
+        if(this.state.level < 3 && this.state.machines.blender) {
+          this.state.machines.blender.owned = 0;
+        }
+
         this.state.version = VERSION;
 
         this.state.orders = this.state.orders.filter(order =>
@@ -298,6 +319,9 @@
       if (!this.state.settings.gameVoice || !("speechSynthesis" in window)) return;
       try {
         window.speechSynthesis.cancel();
+        if(typeof window.speechSynthesis.resume === "function") {
+          window.speechSynthesis.resume();
+        }
         const utterance = new SpeechSynthesisUtterance(String(text||""));
         utterance.rate = Number(this.state.settings.voiceRate)||1.4;
         window.speechSynthesis.speak(utterance);
@@ -377,6 +401,7 @@
       this.state.settings.voiceRate=Math.max(.5,Math.min(3,Number(rate)||1.4));
       this.clearAnnouncements();
       this.save();
+      if(this.state.settings.gameVoice) this.speak("Game Voice ready.");
       return {ok:true,message:`Game Voice ${enabled?"on":"off"}. Speech rate ${this.state.settings.voiceRate}.`};
     }
 
@@ -430,7 +455,7 @@
       this.state.shift={
         active:true,number:this.state.shift.number,workArea,served:0,sales:0,tips:0,
         operatingCosts:0,payroll:0,specialServed:0,
-        servicePaused:false
+        servicePaused:false,goalAnnounced:false
       };
 
       this.startTimers();
@@ -766,6 +791,12 @@
 
       if(customer.special) this.state.shift.specialServed+=1;
 
+      const goal=this.customerGoalForLevel();
+      if(!this.state.shift.goalAnnounced && this.state.shift.served>=goal) {
+        this.state.shift.goalAnnounced=true;
+        this.announce(`Customer goal reached. ${this.state.shift.served} of ${goal} customers served this shift.`);
+      }
+
       let tip=0;
       if(Math.random()<.55) {
         tip=Math.max(1,Math.round(order.price*.10*customer.tipMultiplier));
@@ -840,7 +871,9 @@
       const before=this.state.level;
       this.state.xp+=amount;
       this.state.level=levelFromXp(this.state.xp);
+
       if(this.state.level>before) {
+        this.state.levelWarningAnnouncedFor=null;
         const rewards=this.claimLevelRewards();
         const expansion=this.getCafeExpansionInfo();
         const unlocked=MENU.filter(i=>this.menuUnlockLevel(i.id)===this.state.level).map(i=>i.name);
@@ -848,9 +881,23 @@
         const parts=[`Café Management Level ${this.state.level} reached.`];
         if(rewards.length) parts.push(rewards.join(" "));
         if(unlocked.length) parts.push(`New menu unlocks: ${unlocked.join(", ")}.`);
-        if(machineUnlocks.length) parts.push(`New machine available: ${machineUnlocks.join(", ")}.`);
-        if(expansion.nextMilestone) parts.push(`Next major level ${expansion.nextMilestone.level}: ${expansion.nextMilestone.text}.`);
+        if(machineUnlocks.length) parts.push(`New machine available to purchase: ${machineUnlocks.join(", ")}.`);
+        if(expansion.nextMilestone) parts.push(`Coming later at Level ${expansion.nextMilestone.level}: ${expansion.nextMilestone.text}.`);
         this.announce(parts.join(" "));
+        return;
+      }
+
+      const nextXp=xpForNextLevel(this.state.level);
+      const remaining=Math.max(0,nextXp-this.state.xp);
+      if(remaining<=10 && this.state.levelWarningAnnouncedFor!==this.state.level) {
+        this.state.levelWarningAnnouncedFor=this.state.level;
+        const nextLevel=this.state.level+1;
+        const nextItems=MENU.filter(i=>this.menuUnlockLevel(i.id)===nextLevel).map(i=>i.name);
+        const nextMachines=Object.values(MACHINES).filter(m=>m.unlockLevel===nextLevel).map(m=>m.name);
+        const details=[];
+        if(nextItems.length) details.push(`menu unlocks ${nextItems.join(", ")}`);
+        if(nextMachines.length) details.push(`machine access ${nextMachines.join(", ")}`);
+        this.announce(`Almost Café Level ${nextLevel}. ${remaining} XP remaining.${details.length?` Next level includes ${details.join(" and ")}.`:""}`);
       }
     }
 
@@ -1289,6 +1336,7 @@
   cafe.load();
   window.cafeGame=cafe;
   window.CAFE_DIFFICULTIES=DIFFICULTIES;
+  window.CAFE_MENU=MENU;
   window.CAFE_SUPPLIES=SUPPLIES;
   window.CAFE_BAKERY=BAKERY;
   window.CAFE_MACHINES=MACHINES;
