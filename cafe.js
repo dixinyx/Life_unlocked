@@ -2,7 +2,7 @@
 "use strict";
 (() => {
   const SAVE_KEY = "lifeUnlockedCafeV10";
-  const VERSION = "10.7";
+  const VERSION = "10.8";
 
   const DIFFICULTIES = {
     beginner: { name: "Beginner", patience: null, arrivalSeconds: null },
@@ -82,6 +82,7 @@
   };
 
   const MACHINES = {
+    blender:{name:"Blender",baseCost:350,unlockLevel:3},
     coffeeMachine:{name:"Coffee Machine",unlockLevel:1,baseCost:150},
     hotDrinkStation:{name:"Hot Drink Station",unlockLevel:1,baseCost:150},
     grill:{name:"Grill",unlockLevel:1,baseCost:200},
@@ -821,6 +822,29 @@
       if(this.state.level>before) this.announce(`Café Management Level ${this.state.level} reached.`);
     }
 
+    isMenuItemUnlocked(id) {
+      const required=MENU_UNLOCK_LEVELS[id] || 1;
+      if(this.state.level<required) return false;
+      const machineId=MACHINE_REQUIREMENTS[id];
+      if(machineId){
+        const machine=this.state.machines[machineId];
+        if(!machine || machine.owned<1) return false;
+      }
+      return true;
+    }
+
+    menuUnlockLevel(id) { return MENU_UNLOCK_LEVELS[id] || 1; }
+
+    customerGoalForLevel(level=this.state.level) {
+      return 10 + Math.max(0,level-1)*5;
+    }
+
+    customerGoalProgress() {
+      const goal=this.customerGoalForLevel();
+      const served=this.state.shift?.served || 0;
+      return {served,goal,remaining:Math.max(0,goal-served)};
+    }
+
     getCafeExpansionInfo() {
       const level=this.state.level;
       let maxTables=4;
@@ -1237,6 +1261,8 @@
   window.CAFE_SUPPLIES=SUPPLIES;
   window.CAFE_BAKERY=BAKERY;
   window.CAFE_MACHINES=MACHINES;
+  window.CAFE_MENU_UNLOCK_LEVELS=MENU_UNLOCK_LEVELS;
+  window.CAFE_MACHINE_REQUIREMENTS=MACHINE_REQUIREMENTS;
   window.CAFE_MACHINE_TIERS=MACHINE_TIERS;
   window.CAFE_EMPLOYEE_ROLES=EMPLOYEE_ROLES;
   window.CAFE_LEVEL_THRESHOLDS=LEVEL_THRESHOLDS;

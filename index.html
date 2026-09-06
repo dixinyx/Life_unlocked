@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Life Unlocked Version 10.7</title>
+<title>Life Unlocked Version 10.8</title>
 <style>
 body{font-family:system-ui,sans-serif;line-height:1.5;padding:1rem;max-width:58rem;margin:auto}
 button,input,select{font:inherit;padding:.7rem;margin:.35rem 0}
@@ -16,7 +16,7 @@ button{display:block;width:100%;text-align:left}
 </head>
 <body>
 <h1>Life Unlocked</h1>
-<p>Version 10.7 Simple Economy Build</p>
+<p>Version 10.8 Café Progression Build</p>
 <div id="game-live-region" role="status" aria-live="polite" aria-atomic="true"></div>
 <div id="cafe-live-region" role="status" aria-live="polite" aria-atomic="true"></div>
 
@@ -63,6 +63,7 @@ button{display:block;width:100%;text-align:left}
 <button onclick="openCafeProgress()">Café Statistics and Management Progress</button>
 <button onclick="openCafeFinances()">Café Finances</button>
 <button onclick="openCafeSettings()">Café Settings and Accessibility</button>
+<button onclick="show('cafe-tutorial')">Café Tutorial and Help</button>
 <button onclick="show('main')">Back to Main Menu</button>
 </section>
 
@@ -182,6 +183,27 @@ button{display:block;width:100%;text-align:left}
 <h2 tabindex="-1">My Home</h2>
 <p>My Home is coming in the next development stage.</p>
 <button onclick="show('main')">Back</button>
+</section>
+
+<section id="screen-cafe-tutorial" class="screen" hidden>
+<h2 tabindex="-1">Café Tutorial and Help</h2>
+<h3>Café Basics</h3>
+<p>Start a Café shift, take an order, prepare it, and serve it before the customer leaves.</p>
+<h3>Progression</h3>
+<p>Serving customers earns Café XP. Higher management levels unlock menu items, equipment, capacity, and automatic level rewards.</p>
+<h3>Bakery and Menu</h3>
+<p>Locked items cannot be ordered. Some menu items require equipment. Smoothies require a Blender.</p>
+<h3>Machines</h3>
+<p>Machines can be purchased and upgraded. The Café can eventually own up to four of each machine type.</p>
+<h3>Employees</h3>
+<p>Assigned employees work automatically in their jobs. Experienced employees can eventually become eligible for Manager.</p>
+<h3>Drive-Through</h3>
+<p>The Drive-Through is intended as a background feature. An assigned Drive-Through Worker operates it while you play the Café.</p>
+<h3>Money</h3>
+<p>Sales go to Café money. Tips go to Personal Money. Wages, business expenses, and owner pay are handled automatically.</p>
+<h3>Accessibility</h3>
+<p>On-screen buttons are the main controls. Desktop shortcuts are optional. Important customer messages should take priority over routine background information.</p>
+<button onclick="openCafe()">Back to Café</button>
 </section>
 </main>
 
@@ -470,9 +492,10 @@ function openCafeProgress(){
   const p=cafeGame.getProgressSummary();
   const nextText=p.toNext>0?`${p.toNext} XP until the next level.`:"Highest defined management level reached.";
   const expansion=p.expansion;
+  const goal=cafeGame.customerGoalProgress();
   const nextExpansion=expansion.nextMilestone?`Next major unlock: Level ${expansion.nextMilestone.level}, ${expansion.nextMilestone.text}.`:"All currently defined major Café expansions unlocked.";
   document.getElementById("progress-summary").textContent=
-    `Café Management Level ${p.level}. ${p.xp} XP. ${nextText} Café Rating ${p.cafeRating} out of 5. Current table capacity ${expansion.maxTables}. Maximum machines per type 4. ${nextExpansion} Lifetime customers served ${p.lifetimeCustomers}. Lifetime sales ${p.lifetimeSales} coins. Lifetime tips ${p.lifetimeTips} coins. Hired employees ${p.employees}. Café Business Money ${p.businessMoney}. Café debt ${p.debt}.`;
+    `Café Management Level ${p.level}. ${p.xp} XP. ${nextText} Customer goal ${goal.served} of ${goal.goal} served this shift.  Café Rating ${p.cafeRating} out of 5. Current table capacity ${expansion.maxTables}. Maximum machines per type 4. ${nextExpansion} Lifetime customers served ${p.lifetimeCustomers}. Lifetime sales ${p.lifetimeSales} coins. Lifetime tips ${p.lifetimeTips} coins. Hired employees ${p.employees}. Café Business Money ${p.businessMoney}. Café debt ${p.debt}.`;
   show("cafe-progress");
 }
 
@@ -552,6 +575,13 @@ document.getElementById("cafe-live-region").setAttribute("aria-live",cafeGame.st
 cafeGame.ensureTimersForActiveShift();
 setInterval(()=>cafeGame.checkBakeryJobs(),15000);
 show("welcome");
+
+function announceCurrentShiftStatus(){
+  const waiting=(cafeGame.state.customers||[]).filter(c=>!c.served).length;
+  const ready=(cafeGame.state.orders||[]).filter(o=>o.status==="ready").length;
+  const assigned=(cafeGame.state.selectedEmployeeIds||[]).length;
+  announce(`Current shift status. ${waiting} customers waiting. ${ready} orders ready to serve. ${assigned} employees assigned. Café level ${cafeGame.state.level}. Café rating ${cafeGame.state.cafeRating||3} out of 5.`);
+}
 </script>
 </body>
 </html>
