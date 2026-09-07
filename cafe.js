@@ -2,7 +2,7 @@
 "use strict";
 (() => {
   const SAVE_KEY = "lifeUnlockedCafeV10";
-  const VERSION = "10.8.4";
+  const VERSION = "10.8.5";
 
   const DIFFICULTIES = {
     beginner: { name: "Beginner", patience: null, arrivalSeconds: null },
@@ -974,6 +974,17 @@
       return rewards;
     }
 
+    getActiveShiftProgress() {
+      const nextXp=xpForNextLevel(this.state.level);
+      const goal=this.customerGoalForLevel();
+      const served=this.state.shift?.served||0;
+      const nextLevel=this.state.level+1;
+      const nextItems=MENU.filter(i=>this.menuUnlockLevel(i.id)===nextLevel).map(i=>i.name);
+      const nextMachines=Object.values(MACHINES).filter(m=>m.unlockLevel===nextLevel).map(m=>m.name);
+      const reward=Math.min(1000,nextLevel*50);
+      return {level:this.state.level,xp:this.state.xp,nextXp,xpRemaining:Math.max(0,nextXp-this.state.xp),customerGoal:goal,customersServed:served,customersRemaining:Math.max(0,goal-served),nextReward:reward,nextItems,nextMachines,debt:this.state.businessDebt||0};
+    }
+
     getProgressSummary() {
       const nextXp=xpForNextLevel(this.state.level);
       const toNext=Math.max(0,nextXp-this.state.xp);
@@ -1111,13 +1122,19 @@
     }
 
     bakeAll() {
-      if(this.state.level<5) return {ok:false,message:"Bake All unlocks at Café Level 5."};
-      let count=0;
-      this.availableBakeryItems().forEach(([id])=>{
-        const r=this.startBake(id,false);
-        if(r.ok) count+=1;
-      });
-      return {ok:count>0,message:count?`Bake All started ${count} bakery batches.`:"No bakery batches could be started."};
+      const available=this.bakerySlotsAvailable();
+      if(available<=0) return {ok:false,message:"No oven slots are available right now."};
+      let started=0;
+      const messages=[];
+      for(const [id,def] of Object.entries(BAKERY)){
+        if(started>=available) break;
+        if(def.unlockLevel>this.state.level) continue;
+        if(this.state.bakeryJobs.some(j=>j.itemId===id&&!j.completed)) continue;
+        const result=this.startBake(id,false);
+        if(result.ok){started+=1;messages.push(def.name);}
+      }
+      if(!started) return {ok:false,message:"No eligible bakery batches could be started."};
+      return {ok:true,message:`Bake All started ${started} batch${started===1?"":"es"}: ${messages.join(", ")}. ${this.bakerySlotsAvailable()} oven slots remain available.`};
     }
 
     smartBake() {
@@ -1263,6 +1280,26 @@
 
     getAssignedManager() {
       return this.getSelectedEmployees().find(e=>e.promotedManager) || null;
+    }
+
+    staffRecommendation() {
+      const staff=this.getSelectedEmployees();
+      const payroll=staff.reduce((sum,e)=>sum+(e.shiftWage||0),0);
+      const money=this.state.businessMoney;
+      let rating="Recommended";
+      let advice="Your current staff level is reasonable for the Café balance.";
+      if(payroll===0){rating="Optional";advice="You can run this shift yourself and keep payroll at zero.";}
+      else if(payroll>money*0.35){rating="Not Recommended";advice="Selected payroll is high compared with current Café Business Money. Consider using fewer employees this shift.";}
+      else if(payroll>money*0.2){rating="Optional";advice="You can afford this staff, but wages may noticeably reduce profit.";}
+      const benefits=staff.map(e=>{
+        if(e.role==="cleaner") return "Cleaner reduces manual table cleaning.";
+        if(e.role==="cashier") return "Cashier automatically serves ready orders and completes checkout.";
+        if(e.role==="baker") return "Baker helps keep bakery stock available.";
+        if(e.role==="barista") return "Barista assists drink preparation.";
+        if(e.role==="driveThrough") return "Drive-Through Worker enables automatic Drive-Through service.";
+        return `${e.name} provides background assistance.`;
+      });
+      return {selectedCount:staff.length,payroll,rating,advice,benefits};
     }
 
     getSelectedEmployees() {

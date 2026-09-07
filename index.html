@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Life Unlocked Version 10.8.4</title>
+<title>Life Unlocked Version 10.8.5</title>
 <style>
 body{font-family:system-ui,sans-serif;line-height:1.5;padding:1rem;max-width:58rem;margin:auto}
 button,input,select{font:inherit;padding:.7rem;margin:.35rem 0}
@@ -13,10 +13,15 @@ button{display:block;width:100%;text-align:left}
 .card{border:1px solid #777;padding:.75rem;margin:.6rem 0}
 .summary{font-weight:600}
 </style>
+<style>
+.screen h3{margin-top:1.4rem;}
+.summary{padding:0.75rem 0;}
+button{margin:0.25rem 0.25rem 0.25rem 0;}
+</style>
 </head>
 <body>
 <h1>Life Unlocked</h1>
-<p>Version 10.8.4 Economy, Drive-Through and Accessibility Update</p>
+<p>Version 10.8.5 Navigation, Bakery and Onboarding Update</p>
 <div id="game-live-region" role="status" aria-live="polite" aria-atomic="true"></div>
 <div id="level-live-region" class="sr-only" role="status" aria-live="assertive" aria-atomic="true"></div>
 <div id="cafe-live-region" role="status" aria-live="polite" aria-atomic="true"></div>
@@ -53,16 +58,18 @@ button{display:block;width:100%;text-align:left}
 <section id="screen-cafe" class="screen" hidden>
 <h2 tabindex="-1">Café Dashboard</h2>
 <p id="cafe-summary" class="summary"></p>
+<button onclick="announceStaffRecommendation()">Staff Recommendation</button>
 <button onclick="startShift('counter')">Start Café Shift</button>
 <button id="resume-saved-shift-button" onclick="resumeShift()">Resume Saved Café Shift</button>
 <button id="end-saved-shift-button" onclick="endSavedShift()">End Saved Café Shift</button>
 <button onclick="openStorage()">Inventory and Storage</button>
+<h3>Café Management</h3>
+<button onclick="announceBakeryStatus()">Check Baking Status</button>
 <button onclick="openBakery()">Bakery</button>
 <button onclick="openMachines()">Machines and Upgrades</button>
 <button onclick="openEmployees()">Employees and Shift Staff</button>
 <button onclick="openIdle()">Idle Shift</button>
 <button onclick="openCafeProgress()">Café Statistics and Management Progress</button>
-<button onclick="openCafeFinances()">Café Finances</button>
 <button onclick="openCafeSettings()">Café Settings and Accessibility</button>
 <button onclick="show('cafe-tutorial')">Café Tutorial and Help</button>
 <button onclick="show('main')">Back to Main Menu</button>
@@ -83,10 +90,12 @@ button{display:block;width:100%;text-align:left}
 
 <section id="screen-shift" class="screen" hidden>
 <h2 tabindex="-1">Active Café Shift</h2>
+<h3>Shift Status</h3>
+<button onclick="announceShiftProgress()">Check Shift Progress</button>
 <p id="shift-status" class="summary"></p>
+<h3>Shift Controls</h3>
 <button id="pause-shift-button" onclick="pauseActiveShift()">Pause Shift</button>
-<button onclick="startDriveThrough()">Start Drive-Through Service</button>
-<button onclick="driveThroughProgress()">Drive-Through Progress</button>
+<button onclick="driveThroughProgress()">Check Drive-Through Status</button>
 <button id="resume-shift-button" onclick="resumeActiveShiftFromPause()" hidden>Resume Shift</button>
 <button onclick="show('cafe-hotkeys')">Keyboard Commands and Help</button>
 <button onclick="newCustomer()">New Customer</button>
@@ -100,7 +109,6 @@ button{display:block;width:100%;text-align:left}
 <button id="clean-table-button" onclick="cleanTable()">Clean Next Table</button>
 <button onclick="openStorage()">Inventory and Storage</button>
 <button onclick="openBakery()">Bakery</button>
-<button onclick="openMachines()">Machines</button>
 <h3>Customers</h3><div id="customers"></div>
 <h3>Orders</h3><div id="orders"></div>
 <h3>Tables</h3><div id="tables"></div>
@@ -363,7 +371,7 @@ function bellmontDateTimeLabel(){
 function updateMain(){
   const player=lifeUnlockedGame.state.player||{};
   document.getElementById("main-summary").textContent=
-    `Version 10.8.4. Character name ${player.name||"Player"}. Age ${player.age||"unknown"}. ${bellmontDateTimeLabel()} Personal Money ${LifeUnlockedWorld.state.money.personal} coins.`;
+    `Version 10.8.5. Character name ${player.name||"Player"}. Age ${player.age||"unknown"}. ${bellmontDateTimeLabel()} Personal Money ${LifeUnlockedWorld.state.money.personal} coins.`;
 }
 
 function openCafeOrMainAfterLoad(){
@@ -488,6 +496,27 @@ function driveThroughProgress(){
   announce(d.active?`Drive-Through active. ${d.customersServed} customers served. ${d.sales} Café coins in sales.`:`Drive-Through is not active. ${d.customersServed} customers served this shift. ${d.sales} Café coins in sales.`);
 }
 
+function announceShiftProgress(){
+  const p=cafeGame.getActiveShiftProgress();
+  const unlockText=[p.nextItems.length?`Next menu unlocks: ${p.nextItems.join(", ")}.`:"",p.nextMachines.length?`Next machine unlocks: ${p.nextMachines.join(", ")}.`:""].filter(Boolean).join(" ");
+  const msg=`Café Level ${p.level}. ${p.xp} XP. ${p.xpRemaining} XP until Level ${p.level+1}. Customer goal ${p.customersServed} of ${p.customerGoal}. ${p.customersRemaining} customers remaining. Next level bonus ${p.nextReward} Café coins. Café debt ${p.debt} coins. ${unlockText}`;
+  announce(msg);
+  if(typeof announceLevelAccessibility==="function") announceLevelAccessibility(msg);
+}
+
+function announceBakeryStatus(){
+  const s=cafeGame.bakeryStatus();
+  if(!s.activeJobs.length){announce(`Bakery status. ${s.ovenCapacity} ovens owned. No batches are baking. ${s.availableOvens} ovens available.`);return;}
+  const jobs=s.activeJobs.map(j=>`Oven ${j.oven}: ${j.name}, ${j.remainingText} remaining.`).join(" ");
+  announce(`Bakery status. ${jobs} ${s.availableOvens} ovens available.`);
+}
+
+function announceStaffRecommendation(){
+  const r=cafeGame.staffRecommendation();
+  const benefits=r.benefits.length?r.benefits.join(" "):"No employees selected.";
+  announce(`Staff recommendation: ${r.rating}. Selected employees ${r.selectedCount}. Estimated payroll ${r.payroll} Café coins. ${r.advice} ${benefits}`);
+}
+
 function pauseActiveShift(){
   if(!cafeGame.state.shift.active){announce("No active Café shift.");return;}
   if(cafeGame.pauseCustomerService()){
@@ -587,7 +616,8 @@ function openBakery(){renderBakery();show("bakery");}
 function renderBakery(){
   cafeGame.checkBakeryJobs();
   const box=document.getElementById("bakery-list");box.innerHTML="";
-  document.getElementById("bakery-summary").textContent=`Bakery stock and progression. Café Level ${cafeGame.state.level}.`;
+  const ovenStatus=cafeGame.bakeryStatus();
+  document.getElementById("bakery-summary").textContent=`Bakery stock and progression. Café Level ${cafeGame.state.level}. Ovens owned ${ovenStatus.ovenCapacity}. Active bake jobs ${ovenStatus.activeJobs.length}. Available ovens ${ovenStatus.availableOvens}.`;
   Object.entries(CAFE_BAKERY).forEach(([id,def])=>{
     const locked=def.unlockLevel>cafeGame.state.level;
     const stock=cafeGame.state.bakeryStock[id]||0;
