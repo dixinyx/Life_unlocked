@@ -3,7 +3,7 @@
 (() => {
   const MASTER_KEY = "lifeUnlockedUnifiedSaveV10";
   const SAVE_FORMAT = 1;
-  const BUILD = "10.8.5";
+  const BUILD = "10.8.6";
 
   let attached = false;
   let saving = false;

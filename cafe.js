@@ -2,7 +2,7 @@
 "use strict";
 (() => {
   const SAVE_KEY = "lifeUnlockedCafeV10";
-  const VERSION = "10.8.5";
+  const VERSION = "10.8.6";
 
   const DIFFICULTIES = {
     beginner: { name: "Beginner", patience: null, arrivalSeconds: null },
@@ -68,6 +68,7 @@
 
   const SUPPLIES = {
     coffeeBeans:{name:"Coffee Beans",unitCost:4},
+    sugar:{name:"Sugar",unitCost:1},
     cups:{name:"Cups and Lids",unitCost:2},
     teaBags:{name:"Tea Bags",unitCost:2},
     hotChocolateMix:{name:"Hot Chocolate Mix",unitCost:3},
@@ -461,6 +462,10 @@
 
       this.startTimers();
       this.autoStartBakerIfNeeded();
+      if(this.state.level>=10 && this.getSelectedEmployees().some(e=>e.role==="driveThrough")) {
+        this.state.driveThroughService={active:true,customersServed:0,sales:0,lastTick:Date.now()};
+      }
+
       this.save();
 
       const staff=this.getSelectedEmployees().map(e=>`${e.name}, ${EMPLOYEE_ROLES[e.role].name}`).join("; ");
@@ -673,6 +678,20 @@
       });
     }
 
+    drinkModifierFor(itemId) {
+      if(itemId!=="coffee" && itemId!=="tea") return {text:"",supply:{}};
+      const options=[
+        {text:"",supply:{}},
+        {text:" with one sugar",supply:{sugar:1}},
+        {text:" with two sugars",supply:{sugar:2}},
+        {text:" with milk",supply:{milk:1}},
+        {text:" with milk and one sugar",supply:{milk:1,sugar:1}},
+        {text:" with milk and two sugars",supply:{milk:1,sugar:2}}
+      ];
+      const available=options.filter(opt=>Object.entries(opt.supply).every(([id,qty])=>(this.state.supplies[id]||0)>=qty));
+      return available[Math.floor(Math.random()*available.length)]||options[0];
+    }
+
     takeOrder(customerId) {
       const customer=this.state.customers.find(c=>c.id===customerId&&!c.served&&!c.left);
       if(!customer) return {ok:false,message:"Customer unavailable."};
@@ -682,12 +701,13 @@
       if(!available.length) return {ok:false,message:"Nothing is currently available to sell. Restock or bake first."};
 
       const item=available[Math.floor(Math.random()*available.length)];
+      const modifier=this.drinkModifierFor(item.id);
       const order={
         id:`order-${Date.now()}-${Math.random()}`,
         customerId:customer.id,
         customerName:customer.name,
-        itemId:item.id,
-        itemName:item.name,
+        itemId:item.id,modifierSupply:modifier.supply,
+        itemName:`${item.name}${modifier.text}`,
         price:Math.round(item.price*customer.rewardMultiplier),
         prepSeconds:item.prepSeconds,
         status:"waiting",
@@ -1074,6 +1094,7 @@
     }
 
     startBake(id, automatic=false) {
+      if(this.bakerySlotsAvailable()<=0) return {ok:false,message:`All ${this.getOvenCapacity()} oven slots are busy. Wait for a batch to finish or buy another oven.`};
       const can=this.canBake(id);
       if(!can.ok) return can;
 
@@ -1119,6 +1140,46 @@
       }
 
       return finished.length;
+    }
+
+    getOvenCapacity() {
+      const oven=this.state.machines.oven;
+      return Math.max(0,Math.min(4,oven?.owned||0));
+    }
+
+    activeBakeJobs() {
+      this.checkBakeryJobs();
+      return this.state.bakeryJobs.slice();
+    }
+
+    bakerySlotsAvailable() {
+      return Math.max(0,this.getOvenCapacity()-this.state.bakeryJobs.length);
+    }
+
+    bakeryStatus() {
+      this.checkBakeryJobs();
+      const now=Date.now();
+      const jobs=this.state.bakeryJobs
+        .slice()
+        .sort((a,b)=>a.finishAt-b.finishAt)
+        .map((job,index)=>{
+          const remaining=Math.max(0,Math.ceil((job.finishAt-now)/1000));
+          const minutes=Math.floor(remaining/60);
+          const seconds=remaining%60;
+          const def=BAKERY[job.itemId];
+          return {
+            oven:index+1,
+            itemId:job.itemId,
+            name:def?.name||job.itemId,
+            remainingSeconds:remaining,
+            remainingText:`${minutes} minute${minutes===1?"":"s"} ${seconds} second${seconds===1?"":"s"}`
+          };
+        });
+      return {
+        ovenCapacity:this.getOvenCapacity(),
+        activeJobs:jobs,
+        availableOvens:Math.max(0,this.getOvenCapacity()-jobs.length)
+      };
     }
 
     bakeAll() {

@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Life Unlocked Version 10.8.5</title>
+<title>Life Unlocked Version 10.8.6</title>
 <style>
 body{font-family:system-ui,sans-serif;line-height:1.5;padding:1rem;max-width:58rem;margin:auto}
 button,input,select{font:inherit;padding:.7rem;margin:.35rem 0}
@@ -21,7 +21,7 @@ button{margin:0.25rem 0.25rem 0.25rem 0;}
 </head>
 <body>
 <h1>Life Unlocked</h1>
-<p>Version 10.8.5 Navigation, Bakery and Onboarding Update</p>
+<p>Version 10.8.6 Bakery, Progression and Gameplay Fixes</p>
 <div id="game-live-region" role="status" aria-live="polite" aria-atomic="true"></div>
 <div id="level-live-region" class="sr-only" role="status" aria-live="assertive" aria-atomic="true"></div>
 <div id="cafe-live-region" role="status" aria-live="polite" aria-atomic="true"></div>
@@ -32,6 +32,8 @@ button{margin:0.25rem 0.25rem 0.25rem 0;}
 <p>Life Unlocked is a blind-first, text-based life simulator. Sighted players are welcome, but important gameplay information never depends on graphics.</p>
 <button onclick="show('new-game')">Create New Character</button>
 <button id="continue-button" onclick="continueGame()">Continue</button>
+<button onclick="show('welcome-help')">How to Play</button>
+<button onclick="show('welcome-accessibility')">Accessibility and Controls</button>
 </section>
 
 <section id="screen-new-game" class="screen" hidden>
@@ -50,7 +52,6 @@ button{margin:0.25rem 0.25rem 0.25rem 0;}
 <h2 tabindex="-1">Main Menu</h2>
 <p id="main-summary" class="summary"></p>
 <button onclick="openCafe()">Café</button>
-<button onclick="openHotel()">Hotel</button>
 <button onclick="comingSoon()">My Home — Coming Soon</button>
 <button onclick="saveAll()">Save Everything</button>
 </section>
@@ -109,8 +110,10 @@ button{margin:0.25rem 0.25rem 0.25rem 0;}
 <button id="clean-table-button" onclick="cleanTable()">Clean Next Table</button>
 <button onclick="openStorage()">Inventory and Storage</button>
 <button onclick="openBakery()">Bakery</button>
-<h3>Customers</h3><div id="customers"></div>
-<h3>Orders</h3><div id="orders"></div>
+<h3>Customers and Orders</h3>
+<p id="latest-action" class="summary" aria-live="off">Latest action: Shift ready.</p>
+<div id="customers"></div>
+<div id="orders"></div>
 <h3>Tables</h3><div id="tables"></div>
 <button onclick="openEndShiftConfirmation()">End Shift</button>
 </section>
@@ -185,15 +188,6 @@ button{margin:0.25rem 0.25rem 0.25rem 0;}
 <button onclick="openCafe()">Back to Café</button>
 </section>
 
-<section id="screen-hotel" class="screen" hidden>
-<h2 tabindex="-1">Hotel</h2>
-<p id="hotel-status"></p>
-<button onclick="hotelCareer()">Start Employee Career</button>
-<button onclick="hotelStartShift()">Start Hotel Shift</button>
-<button onclick="hotelTask()">Perform Hotel Task</button>
-<button onclick="hotelEndShift()">End Hotel Shift</button>
-<button onclick="show('main')">Back to Main Menu</button>
-</section>
 
 <section id="screen-coming" class="screen" hidden>
 <h2 tabindex="-1">My Home</h2>
@@ -234,13 +228,12 @@ button{margin:0.25rem 0.25rem 0.25rem 0;}
 <script src="world.js"></script>
 <script src="economy.js"></script>
 <script src="cafe.js"></script>
-<script src="hotel.js"></script>
 <script src="game.js"></script>
 <script src="save.js"></script>
 <script>
 "use strict";
 
-const screenIds=["welcome","new-game","main","cafe","cafe-settings","shift","confirm-end-shift","storage","bakery","machines","employees","idle","cafe-progress","cafe-finances","hotel","coming","cafe-tutorial","cafe-hotkeys"];
+const screenIds=["welcome","new-game","main","cafe","cafe-settings","shift","confirm-end-shift","storage","bakery","machines","employees","idle","cafe-progress","cafe-finances","coming","cafe-tutorial","cafe-hotkeys"];
 
 const cafeAreaScreens=new Set(["cafe","cafe-settings","shift","confirm-end-shift","storage","bakery","machines","employees","idle","cafe-progress","cafe-finances","cafe-tutorial","cafe-hotkeys"]);
 
@@ -329,7 +322,6 @@ function startGame(){
   lifeUnlockedGame.startNewGame(profile);
   LifeUnlockedWorld.reset(profile);
   cafeGame.reset();
-  HotelGame.reset();
   if(window.LifeUnlockedSave){
     LifeUnlockedSave.resetMaster();
     LifeUnlockedSave.saveAll();
@@ -342,7 +334,6 @@ function continueGame(){
   lifeUnlockedGame.load();
   LifeUnlockedWorld.load();
   cafeGame.load();
-  HotelGame.load();
   cafeGame.checkBakeryJobs();
   cafeGame.checkIdleShift();
   updateMain();
@@ -353,7 +344,6 @@ function saveAll(){
   lifeUnlockedGame.save();
   LifeUnlockedWorld.save();
   cafeGame.save();
-  HotelGame.save();
   if(window.LifeUnlockedSave) LifeUnlockedSave.saveAll();
   announce("Everything saved.");
 }
@@ -424,6 +414,7 @@ function startShift(area){
     if(window.LifeUnlockedSave) LifeUnlockedSave.saveAll();
     renderShift();
     show("shift");
+    setTimeout(()=>announceShiftProgress(),250);
   }
 }
 function resumeShift(){
@@ -492,8 +483,17 @@ function startDriveThrough(){
   announce(r.message);
 }
 function driveThroughProgress(){
+  const worker=cafeGame.getSelectedEmployees().find(e=>e.role==="driveThrough");
+  if(cafeGame.state.level<10){
+    announce(`Drive-Through unlocks at Café Level 10. Your current Café Level is ${cafeGame.state.level}.`);
+    return;
+  }
+  if(!worker){
+    announce("Drive-Through is unlocked. Assign a Drive-Through Worker before starting your Café shift to operate it.");
+    return;
+  }
   const d=cafeGame.getDriveThroughProgress();
-  announce(d.active?`Drive-Through active. ${d.customersServed} customers served. ${d.sales} Café coins in sales.`:`Drive-Through is not active. ${d.customersServed} customers served this shift. ${d.sales} Café coins in sales.`);
+  announce(d.active?`Drive-Through active. ${d.customersServed} customers served. ${d.sales} Café coins in sales.`:`Drive-Through worker is assigned, but Drive-Through service is not active for this shift.`);
 }
 
 function announceShiftProgress(){
@@ -750,14 +750,6 @@ function openCafeFinances(){
 
 function returnCafeContext(){if(cafeGame.state.shift.active){renderShift();show("shift");}else openCafe();}
 
-function openHotel(){
-  document.getElementById("hotel-status").textContent=`${HotelGame.state.careerStarted?"Career started":"Career not started"}. Role ${HotelGame.state.role}. ${HotelGame.state.shift.active?"Shift active.":"No active shift."}`;
-  show("hotel");
-}
-function hotelCareer(){const r=HotelGame.startCareer();announce(r.message);openHotel();}
-function hotelStartShift(){const r=HotelGame.startShift();announce(r.message);openHotel();}
-function hotelTask(){const r=HotelGame.performTask();announce(r.message);openHotel();}
-function hotelEndShift(){const r=HotelGame.endShift();announce(r.message);openHotel();}
 
 document.addEventListener("keydown",event=>{
   if(!event.altKey||event.ctrlKey||event.metaKey)return;
